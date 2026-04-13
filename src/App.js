@@ -168,10 +168,12 @@ ${chunks[c]}`);
     setBusy(false);
   };
 
-  const generateImage = async (sc, idx) => {
+  const generateImage = async (sc, idx, isRetry = false) => {
     try {
       setGeneratingIdx(idx);
       setScenes(prev => prev.map((s, i) => i === idx ? { ...s, status: "generating" } : s));
+
+      if (isRetry) addLog(`[Cena ${sc.scene}] Retentando...`, "warn");
 
       const res = await fetch("/api/freepik", {
         method: "POST",
@@ -211,8 +213,14 @@ ${chunks[c]}`);
           else addLog(`[Cena ${sc.scene}] Sem imagem no retorno: ${JSON.stringify(pd).slice(0, 200)}`, "warn");
           return !!imgUrl;
         }
+
         if (status === "failed" || status === "FAILED") {
-          throw new Error(`Geração falhou: ${JSON.stringify(pd).slice(0, 150)}`);
+          if (!isRetry) {
+            addLog(`[Cena ${sc.scene}] Falhou — aguardando 5s e retentando...`, "warn");
+            await new Promise(r => setTimeout(r, 5000));
+            return await generateImage(sc, idx, true);
+          }
+          throw new Error(`Falhou novamente. Edite o prompt na aba Validar e clique em Tentar.`);
         }
       }
       throw new Error("Timeout: imagem não ficou pronta em 160 segundos");
