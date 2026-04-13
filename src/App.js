@@ -21,8 +21,8 @@ const C = {
 };
 
 const MODELS_IMG = [
-  { id: "flux-dev", label: "Flux Dev", desc: "fotorrealista — recomendado para vídeo", cost: "$0.02/img" },
-  { id: "mystic", label: "Mystic", desc: "dark artístico", cost: "$0.04/img" },
+  { id: "mystic", label: "Mystic", desc: "dark cinematográfico — recomendado", cost: "$0.04/img" },
+  { id: "flux-dev", label: "Flux Dev", desc: "fotorrealista", cost: "$0.02/img" },
   { id: "seedream-3", label: "Seedream 3", desc: "personagens consistentes", cost: "$0.06/img" },
 ];
 
@@ -56,7 +56,7 @@ const Btn = ({ children, onClick, disabled, accent, small }) => (
 export default function App() {
   const [tab, setTab] = useState("roteiro");
   const [script, setScript] = useState("");
-  const imgModel = "flux-dev";
+  const [imgModel, setImgModel] = useState("mystic");
   const [videoDuration, setVideoDuration] = useState(5);
   const [scenes, setScenes] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -112,18 +112,33 @@ export default function App() {
         addLog(`Parte ${c + 1} de ${chunks.length}...`);
         setProgress(Math.round(((c + 1) / chunks.length) * 100));
         const raw = await callClaude(`
-You are a creative director for a dark educational YouTube channel.
-Break the script excerpt below into exactly ${scenesPerChunk} visual scenes.
+You are an expert art director and prompt engineer specializing in faceless YouTube channels — where the HOST does not appear, but the video can freely include people, faces, hands, environments, and any visual elements that serve the story.
+
+Your job is to analyze the script excerpt and create cinematic, editorial-quality image prompts that visually bring the content to life. Think like a premium brand campaign director: every frame should feel intentional, beautiful, and contextually matched to the script's theme and emotion.
+
+VISUAL STYLE GUIDE by theme (adapt freely based on actual script content):
+- Health/Beauty: warm editorial lighting, marble surfaces, luxury products, close-up textures, people seen from behind or at angle, golden hour tones
+- Finance/Business: clean office environments, data visualizations, hands on documents, architectural shots, confident compositions
+- Psychology/Mind: conceptual imagery, abstract light patterns, human silhouettes, contemplative environments, depth of field
+- Technology/AI: interfaces, screens with code, human-machine interaction, blue/white tones, modern workspaces
+- Sports/Movement: dynamic angles, motion blur, athletic environments, energy and tension
+- Philosophy/Science: macro details, natural phenomena, cosmic scale, timeless environments
+
 For each scene generate:
-1. scene_desc: short description in Portuguese (1 line)
+1. scene_desc: short description in Portuguese of what the scene represents (1 line)
 2. narration: exact lines from the script for that scene
-3. img_prompt: detailed English image prompt, dark cinematic style (shadowy, dramatic, cold palette, high contrast)
-4. vid_prompt: short English motion prompt (slow camera, fog, particles). 1 sentence.
+3. img_prompt: a detailed, professional English image prompt. Include: subject, setting, lighting, mood, camera angle, color palette, visual style. Match the quality level of a premium editorial or brand campaign. The host never appears — but other people, faces, environments are welcome when they serve the story.
+4. vid_prompt: short English motion prompt (slow zoom, parallax, pan, light shift). 1 sentence.
+
 RULES:
 - Generate EXACTLY ${scenesPerChunk} scenes.
 - Start scene numbering from ${sceneCounter}.
+- Think of scenes as a visual story arc: establish context early, build in the middle, resolve or inspire at the end.
+- Each img_prompt must be unique and specific to that script moment — no generic shots.
 - Respond ONLY with a valid JSON array. No markdown, no explanation. Start with [ end with ].
+
 FORMAT: [{"scene":${sceneCounter},"scene_desc":"...","narration":"...","img_prompt":"...","vid_prompt":"..."}]
+
 SCRIPT EXCERPT:
 ${chunks[c]}`);
         const match = raw.match(/\[[\s\S]*?\]/);
