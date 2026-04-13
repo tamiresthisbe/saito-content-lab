@@ -244,9 +244,10 @@ ${chunks[c]}`);
   const downloadImage = async (sc) => {
     if (!sc.imgUrl) return;
     try {
-      const encoded = encodeURIComponent(sc.imgUrl);
       const filename = `cena_${String(sc.scene).padStart(2, "0")}.jpg`;
-      const res = await fetch(`/api/download?url=${encoded}`);
+      const encoded = encodeURIComponent(sc.imgUrl);
+      const res = await fetch(`/api/download?url=${encoded}&filename=${filename}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
