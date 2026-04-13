@@ -179,18 +179,38 @@ ${chunks[c]}`);
 
       addLog(`[Cena ${sc.scene}] HTTP ${res.status}`);
       const d = await res.json();
-      addLog(`[Cena ${sc.scene}] ${JSON.stringify(d).slice(0, 200)}`);
 
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${d?.message || d?.error || JSON.stringify(d)}`);
 
-      const base64 = d?.data?.base64 || d?.data?.[0]?.base64;
-      const rawUrl = d?.data?.url || d?.data?.[0]?.url;
-      const imgUrl = base64 ? `data:image/jpeg;base64,${base64}` : rawUrl || null;
+      const taskId = d?.data?.task_id;
+      if (!taskId) {
+        addLog(`[Cena ${sc.scene}] Sem task_id: ${JSON.stringify(d).slice(0, 150)}`, "warn");
+        throw new Error("Sem task_id na resposta");
+      }
 
-      setScenes(prev => prev.map((s, i) => i === idx ? { ...s, imgUrl, status: imgUrl ? "done" : "error" } : s));
-      if (imgUrl) addLog(`[Cena ${sc.scene}] Imagem pronta.`, "success");
-      else addLog(`[Cena ${sc.scene}] Sem imagem no retorno.`, "warn");
-      return !!imgUrl;
+      addLog(`[Cena ${sc.scene}] Task ${taskId} — aguardando...`);
+
+      for (let i = 0; i < 40; i++) {
+        await new Promise(r => setTimeout(r, 4000));
+        const poll = await fetch(`/api/freepik?taskId=${taskId}`);
+        const pd = await poll.json();
+        const status = pd?.data?.status;
+        addLog(`[Cena ${sc.scene}] Poll ${i + 1}: ${status}`);
+
+        if (status === "completed" || status === "COMPLETED") {
+          const base64 = pd?.data?.base64 || pd?.data?.[0]?.base64;
+          const rawUrl = pd?.data?.url || pd?.data?.[0]?.url || pd?.data?.images?.[0]?.url;
+          const imgUrl = base64 ? `data:image/jpeg;base64,${base64}` : rawUrl || null;
+          setScenes(prev => prev.map((s, i) => i === idx ? { ...s, imgUrl, status: imgUrl ? "done" : "error" } : s));
+          if (imgUrl) addLog(`[Cena ${sc.scene}] Imagem pronta.`, "success");
+          else addLog(`[Cena ${sc.scene}] Sem imagem no retorno: ${JSON.stringify(pd).slice(0, 200)}`, "warn");
+          return !!imgUrl;
+        }
+        if (status === "failed" || status === "FAILED") {
+          throw new Error(`Geração falhou: ${JSON.stringify(pd).slice(0, 150)}`);
+        }
+      }
+      throw new Error("Timeout: imagem não ficou pronta em 160 segundos");
     } catch (e) {
       setScenes(prev => prev.map((s, i) => i === idx ? { ...s, status: "error" } : s));
       addLog(`[Cena ${sc.scene}] ERRO: ${e.message}`, "error");
