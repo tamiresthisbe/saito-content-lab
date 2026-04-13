@@ -7,11 +7,9 @@ const C = {
   surface: "#0d1420",
   card: "#111b2a",
   border: "#1e2d45",
-  borderHover: "#2a6ef5",
   purple: "#3d8ef5",
   purpleLight: "#7ab8ff",
   purpleDim: "#0f2a55",
-  blue: "#1a6edb",
   text: "#ddeeff",
   muted: "#5a7a99",
   faint: "#1e3050",
@@ -21,9 +19,9 @@ const C = {
 };
 
 const MODELS_IMG = [
-  { id: "mystic", label: "Mystic", desc: "cinematográfico editorial — recomendado", cost: "$0.04/img" },
-  { id: "flux-dev", label: "Flux Dev", desc: "fotorrealista", cost: "$0.02/img" },
-  { id: "seedream-3", label: "Seedream 3", desc: "personagens consistentes", cost: "$0.06/img" },
+  { id: "flux-2-pro", label: "Flux 2 Pro", desc: "cinematográfico editorial — recomendado", cost: "$0.04/img" },
+  { id: "mystic", label: "Mystic", desc: "fotorrealista detalhado", cost: "$0.04/img" },
+  { id: "seedream-4-5", label: "Seedream 4.5", desc: "alta velocidade, boa qualidade", cost: "$0.02/img" },
 ];
 
 const TABS = [
@@ -56,7 +54,7 @@ const Btn = ({ children, onClick, disabled, accent, small }) => (
 export default function App() {
   const [tab, setTab] = useState("roteiro");
   const [script, setScript] = useState("");
-  const [imgModel, setImgModel] = useState("mystic");
+  const [imgModel, setImgModel] = useState("flux-2-pro");
   const [videoDuration, setVideoDuration] = useState(5);
   const [scenes, setScenes] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -87,7 +85,7 @@ export default function App() {
   const calcScenes = (m) => Math.round(m * 60 / 6);
   const approvedCount = scenes.filter(s => s.approved).length;
   const doneCount = scenes.filter(s => s.status === "done").length;
-  const costPerImg = imgModel === "flux-dev" ? 0.02 : imgModel === "seedream-3" ? 0.06 : 0.04;
+  const costPerImg = imgModel === "seedream-4-5" ? 0.02 : 0.04;
   const estCost = (approvedCount * costPerImg).toFixed(2);
   const targetScenes = calcScenes(videoDuration);
 
@@ -108,9 +106,11 @@ export default function App() {
       const scenesPerChunk = Math.ceil(targetScenes / chunks.length);
       addLog(`Processando em ${chunks.length} partes (~${scenesPerChunk} cenas cada)...`);
       let allScenes = [], sceneCounter = 1;
+
       for (let c = 0; c < chunks.length; c++) {
         addLog(`Parte ${c + 1} de ${chunks.length}...`);
         setProgress(Math.round(((c + 1) / chunks.length) * 100));
+
         const raw = await callClaude(`
 You are an expert art director and prompt engineer specializing in faceless YouTube channels — where the HOST does not appear, but the video can freely include people, faces, hands, environments, and any visual elements that serve the story.
 
@@ -127,7 +127,7 @@ VISUAL STYLE GUIDE by theme (adapt freely based on actual script content):
 For each scene generate:
 1. scene_desc: short description in Portuguese of what the scene represents (1 line)
 2. narration: exact lines from the script for that scene
-3. img_prompt: a detailed, professional English image prompt. Include: subject, setting, lighting, mood, camera angle, color palette, visual style. Match the quality level of a premium editorial or brand campaign. The host never appears — but other people, faces, environments are welcome when they serve the story.
+3. img_prompt: a detailed, professional English image prompt. Include: subject, setting, lighting, mood, camera angle, color palette, visual style. End every prompt with: "sharp focus, professional photography, high resolution, natural exposure, clean composition." Match the quality level of a premium editorial or brand campaign. The host never appears — but other people, faces, environments are welcome when they serve the story.
 4. vid_prompt: short English motion prompt (slow zoom, parallax, pan, light shift). 1 sentence.
 
 RULES:
@@ -141,6 +141,7 @@ FORMAT: [{"scene":${sceneCounter},"scene_desc":"...","narration":"...","img_prom
 
 SCRIPT EXCERPT:
 ${chunks[c]}`);
+
         const match = raw.match(/\[[\s\S]*?\]/);
         if (!match) { addLog(`Parte ${c + 1}: JSON não encontrado.`, "warn"); continue; }
         try {
@@ -149,12 +150,14 @@ ${chunks[c]}`);
           sceneCounter += parsed.length;
           addLog(`Parte ${c + 1}: ${parsed.length} cenas.`, "success");
         } catch { addLog(`Parte ${c + 1}: erro de parse.`, "warn"); }
+
         if (c < chunks.length - 1) await new Promise(r => setTimeout(r, 5000));
       }
+
       if (!allScenes.length) throw new Error("Nenhuma cena gerada.");
       allScenes = allScenes.map((s, i) => ({ ...s, scene: i + 1 }));
-      setScenes(allScenes.map(s => ({ ...s, approved: true, imgUrl: null, imgBase64: null, status: "pending", editMode: false })));
-      addLog(`${allScenes.length} cenas criadas.`, "success");
+      setScenes(allScenes.map(s => ({ ...s, approved: true, imgUrl: null, status: "pending", editMode: false })));
+      addLog(`${allScenes.length} cenas criadas com sucesso.`, "success");
       setTab("validar");
     } catch (e) {
       addLog("Erro: " + e.message, "error");
@@ -167,28 +170,26 @@ ${chunks[c]}`);
     try {
       setGeneratingIdx(idx);
       setScenes(prev => prev.map((s, i) => i === idx ? { ...s, status: "generating" } : s));
+
       const res = await fetch("/api/freepik", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: sc.img_prompt,
-          negative_prompt: "bright, cheerful, cartoon, daytime, colorful, happy",
-          guidance_scale: 7,
-          num_images: 1,
-          image: { size: "portrait_4_3" },
-          styling: { style: "photo" }
-        })
+        body: JSON.stringify({ prompt: sc.img_prompt })
       });
+
       addLog(`[Cena ${sc.scene}] HTTP ${res.status}`);
       const d = await res.json();
-      addLog(`[Cena ${sc.scene}] ${JSON.stringify(d).slice(0, 150)}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${d?.message || JSON.stringify(d)}`);
+      addLog(`[Cena ${sc.scene}] ${JSON.stringify(d).slice(0, 200)}`);
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${d?.message || d?.error || JSON.stringify(d)}`);
+
       const base64 = d?.data?.base64 || d?.data?.[0]?.base64;
-      const imgUrl2 = d?.data?.url || d?.data?.[0]?.url;
-      const imgUrl = base64 ? `data:image/jpeg;base64,${base64}` : imgUrl2 || null;
-      setScenes(prev => prev.map((s, i) => i === idx ? { ...s, imgUrl, imgBase64: base64, status: imgUrl ? "done" : "error" } : s));
-      if (imgUrl) addLog(`[Cena ${sc.scene}] Pronta.`, "success");
-      else addLog(`[Cena ${sc.scene}] Base64 ausente.`, "warn");
+      const rawUrl = d?.data?.url || d?.data?.[0]?.url;
+      const imgUrl = base64 ? `data:image/jpeg;base64,${base64}` : rawUrl || null;
+
+      setScenes(prev => prev.map((s, i) => i === idx ? { ...s, imgUrl, status: imgUrl ? "done" : "error" } : s));
+      if (imgUrl) addLog(`[Cena ${sc.scene}] Imagem pronta.`, "success");
+      else addLog(`[Cena ${sc.scene}] Sem imagem no retorno.`, "warn");
       return !!imgUrl;
     } catch (e) {
       setScenes(prev => prev.map((s, i) => i === idx ? { ...s, status: "error" } : s));
@@ -201,7 +202,7 @@ ${chunks[c]}`);
     const toGen = scenes.filter(s => s.approved && s.status !== "done");
     if (!toGen.length) return;
     setBusy(true); setTab("gerar");
-    addLog(`Iniciando geração de ${toGen.length} imagens...`);
+    addLog(`Iniciando geração de ${toGen.length} imagens com ${imgModel}...`);
     let done = 0;
     for (let i = 0; i < scenes.length; i++) {
       if (!scenes[i].approved || scenes[i].status === "done") continue;
@@ -237,10 +238,7 @@ ${chunks[c]}`);
   const S = {
     page: { background: C.bg, minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif", color: C.text },
     header: { background: C.surface, borderBottom: `1px solid ${C.border}`, padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 56 },
-    logo: { display: "flex", alignItems: "center", gap: 10 },
     logoMark: { width: 32, height: 32, borderRadius: 8, background: C.purpleDim, border: `1px solid ${C.purple}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: C.purpleLight },
-    logoText: { fontSize: 15, fontWeight: 600, color: C.text, letterSpacing: "0.02em" },
-    logoSub: { fontSize: 11, color: C.muted, letterSpacing: "0.08em" },
     nav: { display: "flex", gap: 2, background: C.card, borderRadius: 10, padding: 3, border: `1px solid ${C.border}` },
     navBtn: (active) => ({ padding: "6px 14px", fontSize: 12, fontWeight: active ? 500 : 400, cursor: "pointer", borderRadius: 7, border: "none", background: active ? C.purpleDim : "transparent", color: active ? C.purpleLight : C.muted, letterSpacing: "0.04em", display: "flex", alignItems: "center", gap: 6 }),
     main: { padding: "24px 24px 40px" },
@@ -249,12 +247,10 @@ ${chunks[c]}`);
     textarea: { width: "100%", minHeight: 200, fontSize: 13, lineHeight: 1.7, padding: "12px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface, color: C.text, resize: "vertical", boxSizing: "border-box", outline: "none", fontFamily: "inherit" },
     row: { display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" },
     stat: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "10px 16px", flex: 1, minWidth: 100 },
-    statVal: { fontSize: 20, fontWeight: 600, color: C.purpleLight },
-    statLabel: { fontSize: 11, color: C.muted, letterSpacing: "0.06em" },
     progressBar: { height: 3, background: C.border, borderRadius: 2, overflow: "hidden", marginBottom: 20 },
     progressFill: { height: "100%", background: C.purple, borderRadius: 2, transition: "width 0.4s" },
     sceneCard: (approved) => ({ background: C.surface, border: `1px solid ${approved ? C.border : C.faint}`, borderRadius: 10, padding: "14px 16px", marginBottom: 10 }),
-    imgGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 },
+    imgGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 },
     imgCard: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" },
     vidCard: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px", marginBottom: 10, display: "flex", gap: 14, alignItems: "flex-start" },
     logBox: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px", maxHeight: 420, overflowY: "auto" },
@@ -266,11 +262,11 @@ ${chunks[c]}`);
       <style>{`@keyframes spin { to { transform: rotate(360deg); } } * { box-sizing: border-box; }`}</style>
 
       <div style={S.header}>
-        <div style={S.logo}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={S.logoMark}>TS</div>
           <div>
-            <div style={S.logoText}>Saito Content Lab</div>
-            <div style={S.logoSub}>VIDEO PIPELINE</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: C.text, letterSpacing: "0.02em" }}>Saito Content Lab</div>
+            <div style={{ fontSize: 11, color: C.muted, letterSpacing: "0.08em" }}>VIDEO PIPELINE</div>
           </div>
         </div>
         <nav style={S.nav}>
@@ -292,28 +288,31 @@ ${chunks[c]}`);
           <div>
             <div style={S.card}>
               <span style={S.label}>ROTEIRO DO EPISÓDIO</span>
-              <textarea style={S.textarea} value={script} onChange={e => setScript(e.target.value)} placeholder="Cole o roteiro completo aqui..." />
+              <textarea style={S.textarea} value={script} onChange={e => setScript(e.target.value)}
+                placeholder="Cole o roteiro completo aqui..." />
             </div>
 
             <div style={S.card}>
               <p style={S.sectionTitle}>DURAÇÃO DO VÍDEO</p>
               <div style={{ ...S.row, marginBottom: 14 }}>
                 <div style={S.stat}>
-                  <div style={S.statVal}>{videoDuration}<span style={{ fontSize: 13, color: C.muted }}>min</span></div>
-                  <div style={S.statLabel}>DURAÇÃO</div>
+                  <div style={{ fontSize: 20, fontWeight: 600, color: C.purpleLight }}>{videoDuration}<span style={{ fontSize: 13, color: C.muted }}>min</span></div>
+                  <div style={{ fontSize: 11, color: C.muted, letterSpacing: "0.06em" }}>DURAÇÃO</div>
                 </div>
                 <div style={S.stat}>
-                  <div style={S.statVal}>{targetScenes}</div>
-                  <div style={S.statLabel}>CENAS</div>
+                  <div style={{ fontSize: 20, fontWeight: 600, color: C.purpleLight }}>{targetScenes}</div>
+                  <div style={{ fontSize: 11, color: C.muted, letterSpacing: "0.06em" }}>CENAS</div>
                 </div>
                 <div style={S.stat}>
                   <div style={{ fontSize: 20, fontWeight: 600, color: C.success }}>${(targetScenes * costPerImg).toFixed(2)}</div>
-                  <div style={S.statLabel}>EST. API</div>
+                  <div style={{ fontSize: 11, color: C.muted, letterSpacing: "0.06em" }}>EST. API</div>
                 </div>
               </div>
-              <input type="range" min="1" max="20" step="1" value={videoDuration} onChange={e => setVideoDuration(Number(e.target.value))} style={{ width: "100%", accentColor: C.purple }} />
+              <input type="range" min="1" max="20" step="1" value={videoDuration}
+                onChange={e => setVideoDuration(Number(e.target.value))}
+                style={{ width: "100%", accentColor: C.purple }} />
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.faint, marginTop: 4 }}>
-                {[1,5,10,15,20].map(v => <span key={v}>{v}min</span>)}
+                {[1, 5, 10, 15, 20].map(v => <span key={v}>{v}min</span>)}
               </div>
             </div>
 
@@ -345,27 +344,40 @@ ${chunks[c]}`);
             ) : (
               <>
                 <div style={{ ...S.row, marginBottom: 16 }}>
-                  <div style={S.stat}><div style={S.statVal}>{approvedCount}</div><div style={S.statLabel}>APROVADAS</div></div>
-                  <div style={S.stat}><div style={{ fontSize: 20, fontWeight: 600, color: C.success }}>${estCost}</div><div style={S.statLabel}>CUSTO EST.</div></div>
+                  <div style={S.stat}>
+                    <div style={{ fontSize: 20, fontWeight: 600, color: C.purpleLight }}>{approvedCount}</div>
+                    <div style={{ fontSize: 11, color: C.muted, letterSpacing: "0.06em" }}>APROVADAS</div>
+                  </div>
+                  <div style={S.stat}>
+                    <div style={{ fontSize: 20, fontWeight: 600, color: C.success }}>${estCost}</div>
+                    <div style={{ fontSize: 11, color: C.muted, letterSpacing: "0.06em" }}>CUSTO EST.</div>
+                  </div>
                   <Btn onClick={() => setScenes(s => s.map(sc => ({ ...sc, approved: true })))} small>Aprovar todas</Btn>
                   <Btn onClick={() => setScenes(s => s.map(sc => ({ ...sc, approved: false })))} small>Desmarcar</Btn>
                 </div>
                 {scenes.map((s, i) => (
                   <div key={i} style={S.sceneCard(s.approved)}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: s.editMode ? 12 : 0 }}>
-                      <input type="checkbox" checked={s.approved} onChange={e => updateScene(i, "approved", e.target.checked)} style={{ accentColor: C.purple, width: 15, height: 15, cursor: "pointer" }} />
+                      <input type="checkbox" checked={s.approved} onChange={e => updateScene(i, "approved", e.target.checked)}
+                        style={{ accentColor: C.purple, width: 15, height: 15, cursor: "pointer" }} />
                       <span style={{ fontSize: 12, fontWeight: 600, color: C.purple }}>#{String(s.scene).padStart(2, "0")}</span>
                       <span style={{ fontSize: 13, color: C.text, flex: 1 }}>{s.scene_desc}</span>
-                      <button onClick={() => updateScene(i, "editMode", !s.editMode)} style={{ fontSize: 11, padding: "3px 10px", cursor: "pointer", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.muted }}>
+                      <button onClick={() => updateScene(i, "editMode", !s.editMode)}
+                        style={{ fontSize: 11, padding: "3px 10px", cursor: "pointer", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.muted }}>
                         {s.editMode ? "Fechar" : "Editar"}
                       </button>
                     </div>
                     {s.editMode && (
                       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
                         <span style={S.label}>PROMPT DE IMAGEM</span>
-                        <textarea value={s.img_prompt} onChange={e => updateScene(i, "img_prompt", e.target.value)} style={{ ...S.textarea, minHeight: 70, fontSize: 12 }} />
+                        <textarea value={s.img_prompt} onChange={e => updateScene(i, "img_prompt", e.target.value)}
+                          style={{ ...S.textarea, minHeight: 80, fontSize: 12 }} />
                         <span style={S.label}>NARRAÇÃO</span>
-                        <textarea value={s.narration} onChange={e => updateScene(i, "narration", e.target.value)} style={{ ...S.textarea, minHeight: 50, fontSize: 12 }} />
+                        <textarea value={s.narration} onChange={e => updateScene(i, "narration", e.target.value)}
+                          style={{ ...S.textarea, minHeight: 50, fontSize: 12 }} />
+                        <span style={S.label}>PROMPT DE VÍDEO</span>
+                        <textarea value={s.vid_prompt} onChange={e => updateScene(i, "vid_prompt", e.target.value)}
+                          style={{ ...S.textarea, minHeight: 50, fontSize: 12 }} />
                       </div>
                     )}
                   </div>
@@ -385,16 +397,25 @@ ${chunks[c]}`);
             {busy && (
               <div style={{ marginBottom: 20 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.muted, marginBottom: 8 }}>
-                  <span>Gerando imagens via Freepik API...</span>
+                  <span>Gerando imagens via Freepik API ({imgModel})...</span>
                   <span style={{ color: C.purpleLight, fontWeight: 600 }}>{progress}%</span>
                 </div>
                 <div style={S.progressBar}><div style={{ ...S.progressFill, width: `${progress}%` }} /></div>
               </div>
             )}
             <div style={{ ...S.row, marginBottom: 16 }}>
-              <div style={S.stat}><div style={S.statVal}>{doneCount}</div><div style={S.statLabel}>GERADAS</div></div>
-              <div style={S.stat}><div style={S.statVal}>{scenes.filter(s => s.status === "error").length}</div><div style={S.statLabel}>ERROS</div></div>
-              <div style={S.stat}><div style={S.statVal}>{scenes.filter(s => s.status === "pending" || s.status === "generating").length}</div><div style={S.statLabel}>PENDENTES</div></div>
+              <div style={S.stat}>
+                <div style={{ fontSize: 20, fontWeight: 600, color: C.purpleLight }}>{doneCount}</div>
+                <div style={{ fontSize: 11, color: C.muted, letterSpacing: "0.06em" }}>GERADAS</div>
+              </div>
+              <div style={S.stat}>
+                <div style={{ fontSize: 20, fontWeight: 600, color: C.error }}>{scenes.filter(s => s.status === "error").length}</div>
+                <div style={{ fontSize: 11, color: C.muted, letterSpacing: "0.06em" }}>ERROS</div>
+              </div>
+              <div style={S.stat}>
+                <div style={{ fontSize: 20, fontWeight: 600, color: C.muted }}>{scenes.filter(s => s.status === "pending" || s.status === "generating").length}</div>
+                <div style={{ fontSize: 11, color: C.muted, letterSpacing: "0.06em" }}>PENDENTES</div>
+              </div>
               {doneCount > 0 && <Btn onClick={downloadAll} small>Baixar todas ({doneCount})</Btn>}
             </div>
             <div style={S.imgGrid}>
@@ -403,8 +424,8 @@ ${chunks[c]}`);
                 return (
                   <div key={i} style={S.imgCard}>
                     {s.imgUrl
-                      ? <img src={s.imgUrl} alt={`cena ${s.scene}`} style={{ width: "100%", aspectRatio: "4/3", objectFit: "cover", display: "block" }} />
-                      : <div style={{ width: "100%", aspectRatio: "4/3", background: C.card, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                      ? <img src={s.imgUrl} alt={`cena ${s.scene}`} style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", display: "block" }} />
+                      : <div style={{ width: "100%", aspectRatio: "16/9", background: C.card, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
                           {generatingIdx === i && <div style={{ width: 20, height: 20, border: `2px solid ${C.purpleDim}`, borderTop: `2px solid ${C.purple}`, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />}
                           <span style={{ fontSize: 11, color: stColor }}>{generatingIdx === i ? "Gerando..." : stLabel}</span>
                         </div>
@@ -443,19 +464,20 @@ ${chunks[c]}`);
               : scenes.map((s, i) => (
                 <div key={i} style={S.vidCard}>
                   {s.imgUrl
-                    ? <img src={s.imgUrl} alt="" style={{ width: 56, height: 42, objectFit: "cover", borderRadius: 6, flexShrink: 0, border: `1px solid ${C.border}` }} />
-                    : <div style={{ width: 56, height: 42, background: C.card, borderRadius: 6, flexShrink: 0, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    ? <img src={s.imgUrl} alt="" style={{ width: 64, height: 36, objectFit: "cover", borderRadius: 6, flexShrink: 0, border: `1px solid ${C.border}` }} />
+                    : <div style={{ width: 64, height: 36, background: C.card, borderRadius: 6, flexShrink: 0, border: `1px solid ${C.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <span style={{ fontSize: 10, color: C.faint }}>#{s.scene}</span>
                       </div>
                   }
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                       <span style={{ fontSize: 12, fontWeight: 600, color: C.purple }}>#{String(s.scene).padStart(2, "0")}</span>
                       <span style={{ fontSize: 12, color: C.muted }}>{s.scene_desc}</span>
                     </div>
-                    <p style={{ fontSize: 12, color: C.text, margin: "0 0 8px", lineHeight: 1.5 }}>{s.vid_prompt}</p>
+                    <p style={{ fontSize: 12, color: C.text, margin: 0, lineHeight: 1.5 }}>{s.vid_prompt}</p>
                   </div>
-                  <button onClick={() => copyText(s.vid_prompt)} style={{ fontSize: 11, padding: "5px 12px", cursor: "pointer", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, flexShrink: 0 }}>
+                  <button onClick={() => copyText(s.vid_prompt)}
+                    style={{ fontSize: 11, padding: "5px 12px", cursor: "pointer", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, flexShrink: 0 }}>
                     Copiar
                   </button>
                 </div>
