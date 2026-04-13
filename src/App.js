@@ -244,15 +244,20 @@ ${chunks[c]}`);
   const downloadImage = async (sc) => {
     if (!sc.imgUrl) return;
     try {
-      const res = await fetch(sc.imgUrl);
+      const encoded = encodeURIComponent(sc.imgUrl);
+      const filename = `cena_${String(sc.scene).padStart(2, "0")}.jpg`;
+      const res = await fetch(`/api/download?url=${encoded}`);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `cena_${String(sc.scene).padStart(2, "0")}.jpg`;
+      a.download = filename;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 3000);
-    } catch {
+    } catch (e) {
+      addLog(`Erro no download: ${e.message}`, "warn");
       window.open(sc.imgUrl, "_blank");
     }
   };
