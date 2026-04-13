@@ -15,7 +15,6 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         prompt: req.body.prompt,
-        negative_prompt: "watermark, text overlay, low quality, blurry, distorted, amateur, pixelated, overexposed, washed out, artifacts",
         aspect_ratio: "widescreen_16_9",
         resolution: "2k"
       })
