@@ -21,7 +21,7 @@ const C = {
 };
 
 const MODELS_IMG = [
-  { id: "mystic", label: "Mystic", desc: "dark cinematográfico — recomendado", cost: "$0.04/img" },
+  { id: "mystic", label: "Mystic", desc: "cinematográfico editorial — recomendado", cost: "$0.04/img" },
   { id: "flux-dev", label: "Flux Dev", desc: "fotorrealista", cost: "$0.02/img" },
   { id: "seedream-3", label: "Seedream 3", desc: "personagens consistentes", cost: "$0.06/img" },
 ];
@@ -149,7 +149,7 @@ ${chunks[c]}`);
           sceneCounter += parsed.length;
           addLog(`Parte ${c + 1}: ${parsed.length} cenas.`, "success");
         } catch { addLog(`Parte ${c + 1}: erro de parse.`, "warn"); }
-        if (c < chunks.length - 1) await new Promise(r => setTimeout(r, 3000));
+        if (c < chunks.length - 1) await new Promise(r => setTimeout(r, 15000));
       }
       if (!allScenes.length) throw new Error("Nenhuma cena gerada.");
       allScenes = allScenes.map((s, i) => ({ ...s, scene: i + 1 }));
