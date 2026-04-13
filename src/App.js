@@ -241,12 +241,20 @@ ${chunks[c]}`);
     setBusy(false);
   };
 
-  const downloadImage = (sc) => {
+  const downloadImage = async (sc) => {
     if (!sc.imgUrl) return;
-    const a = document.createElement("a");
-    a.href = sc.imgUrl;
-    a.download = `cena_${String(sc.scene).padStart(2, "0")}.jpg`;
-    a.click();
+    try {
+      const res = await fetch(sc.imgUrl);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `cena_${String(sc.scene).padStart(2, "0")}.jpg`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 3000);
+    } catch {
+      window.open(sc.imgUrl, "_blank");
+    }
   };
 
   const downloadAll = () => scenes.filter(s => s.imgUrl).forEach((s, i) => setTimeout(() => downloadImage(s), i * 300));
