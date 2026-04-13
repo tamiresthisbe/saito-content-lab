@@ -13,7 +13,15 @@ export default async function handler(req, res) {
         "Content-Type": "application/json",
         "x-freepik-api-key": process.env.REACT_APP_FREEPIK_KEY
       },
-      body: JSON.stringify(req.body)
+      body: JSON.stringify({
+        prompt: req.body.prompt,
+        negative_prompt: req.body.negative_prompt,
+        guidance_scale: 7,
+        num_images: 1,
+        image: { size: "widescreen_16_9" },
+        styling: { style: "photo" },
+        resolution: "2k"
+      })
     });
     const data = await response.json();
     res.status(response.status).json(data);
