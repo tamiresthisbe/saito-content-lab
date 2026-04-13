@@ -149,7 +149,7 @@ ${chunks[c]}`);
           sceneCounter += parsed.length;
           addLog(`Parte ${c + 1}: ${parsed.length} cenas.`, "success");
         } catch { addLog(`Parte ${c + 1}: erro de parse.`, "warn"); }
-        if (c < chunks.length - 1) await new Promise(r => setTimeout(r, 3000));
+        if (c < chunks.length - 1) await new Promise(r => setTimeout(r, 5000));
       }
       if (!allScenes.length) throw new Error("Nenhuma cena gerada.");
       allScenes = allScenes.map((s, i) => ({ ...s, scene: i + 1 }));
