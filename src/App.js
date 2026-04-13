@@ -21,9 +21,9 @@ const C = {
 };
 
 const MODELS_IMG = [
-  { id: "mystic", label: "Mystic", desc: "dark cinematográfico", cost: "$0.04/img" },
-  { id: "flux-dev", label: "Flux Dev", desc: "realista", cost: "$0.02/img" },
-  { id: "seedream-3", label: "Seedream 3", desc: "personagens", cost: "$0.06/img" },
+  { id: "flux-dev", label: "Flux Dev", desc: "fotorrealista — recomendado para vídeo", cost: "$0.02/img" },
+  { id: "mystic", label: "Mystic", desc: "dark artístico", cost: "$0.04/img" },
+  { id: "seedream-3", label: "Seedream 3", desc: "personagens consistentes", cost: "$0.06/img" },
 ];
 
 const TABS = [
@@ -56,7 +56,7 @@ const Btn = ({ children, onClick, disabled, accent, small }) => (
 export default function App() {
   const [tab, setTab] = useState("roteiro");
   const [script, setScript] = useState("");
-  const [imgModel, setImgModel] = useState("mystic");
+  const imgModel = "flux-dev";
   const [videoDuration, setVideoDuration] = useState(5);
   const [scenes, setScenes] = useState([]);
   const [busy, setBusy] = useState(false);
