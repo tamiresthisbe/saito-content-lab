@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 
 const FREEPIK_KEY = "FPSXb652299562ac5f30ffeedea9a7c20b2e";
+const ANTHROPIC_KEY = process.env.REACT_APP_ANTHROPIC_KEY;
 
 const C = {
   bg: "#080c12",
@@ -73,8 +74,17 @@ export default function App() {
   const callClaude = async (prompt) => {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 8000, messages: [{ role: "user", content: prompt }] })
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_KEY,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-calls": "true"
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 8000,
+        messages: [{ role: "user", content: prompt }]
+      })
     });
     const d = await res.json();
     return d.content?.[0]?.text || "";
