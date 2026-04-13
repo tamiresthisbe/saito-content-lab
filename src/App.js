@@ -1,6 +1,5 @@
 import { useState, useRef } from "react";
 
-const FREEPIK_KEY = "FPSXb652299562ac5f30ffeedea9a7c20b2e";
 const ANTHROPIC_KEY = process.env.REACT_APP_ANTHROPIC_KEY;
 
 const C = {
@@ -153,10 +152,17 @@ ${chunks[c]}`);
     try {
       setGeneratingIdx(idx);
       setScenes(prev => prev.map((s, i) => i === idx ? { ...s, status: "generating" } : s));
-      const res = await fetch("https://api.freepik.com/v1/ai/text-to-image", {
+      const res = await fetch("/api/freepik", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-freepik-api-key": FREEPIK_KEY },
-        body: JSON.stringify({ prompt: sc.img_prompt, negative_prompt: "bright, cheerful, cartoon, daytime, colorful, happy", guidance_scale: 7, num_images: 1, image: { size: "portrait_4_3" }, styling: { style: "photo" } })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: sc.img_prompt,
+          negative_prompt: "bright, cheerful, cartoon, daytime, colorful, happy",
+          guidance_scale: 7,
+          num_images: 1,
+          image: { size: "portrait_4_3" },
+          styling: { style: "photo" }
+        })
       });
       addLog(`[Cena ${sc.scene}] HTTP ${res.status}`);
       const d = await res.json();
