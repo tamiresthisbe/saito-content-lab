@@ -82,12 +82,14 @@ export default function App() {
     return d.content?.[0]?.text || "";
   };
 
+  const [customScenes, setCustomScenes] = useState(null);
+
   const calcScenes = (m) => Math.round(m * 60 / 6);
   const approvedCount = scenes.filter(s => s.approved).length;
   const doneCount = scenes.filter(s => s.status === "done").length;
   const costPerImg = imgModel === "seedream-4-5" ? 0.02 : 0.04;
   const estCost = (approvedCount * costPerImg).toFixed(2);
-  const targetScenes = calcScenes(videoDuration);
+  const targetScenes = customScenes !== null ? customScenes : calcScenes(videoDuration);
 
   const updateScene = (idx, field, val) =>
     setScenes(prev => prev.map((s, i) => i === idx ? { ...s, [field]: val } : s));
@@ -199,8 +201,11 @@ ${chunks[c]}`);
 
         if (status === "completed" || status === "COMPLETED") {
           const base64 = pd?.data?.base64 || pd?.data?.[0]?.base64;
-          const rawUrl = pd?.data?.url || pd?.data?.[0]?.url || pd?.data?.images?.[0]?.url;
-          const imgUrl = base64 ? `data:image/jpeg;base64,${base64}` : rawUrl || null;
+          const rawUrl = pd?.data?.url || pd?.data?.[0]?.url
+            || pd?.data?.images?.[0]?.url
+            || pd?.data?.generated?.[0]
+            || pd?.data?.generated;
+          const imgUrl = base64 ? `data:image/jpeg;base64,${base64}` : (typeof rawUrl === "string" ? rawUrl : null);
           setScenes(prev => prev.map((s, i) => i === idx ? { ...s, imgUrl, status: imgUrl ? "done" : "error" } : s));
           if (imgUrl) addLog(`[Cena ${sc.scene}] Imagem pronta.`, "success");
           else addLog(`[Cena ${sc.scene}] Sem imagem no retorno: ${JSON.stringify(pd).slice(0, 200)}`, "warn");
@@ -329,10 +334,32 @@ ${chunks[c]}`);
                 </div>
               </div>
               <input type="range" min="1" max="20" step="1" value={videoDuration}
-                onChange={e => setVideoDuration(Number(e.target.value))}
+                onChange={e => { setVideoDuration(Number(e.target.value)); setCustomScenes(null); }}
                 style={{ width: "100%", accentColor: C.purple }} />
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.faint, marginTop: 4 }}>
                 {[1, 5, 10, 15, 20].map(v => <span key={v}>{v}min</span>)}
+              </div>
+            </div>
+
+            <div style={{ ...S.card, display: "flex", alignItems: "center", gap: 16 }}>
+              <div>
+                <p style={{ ...S.sectionTitle, marginBottom: 4 }}>NÚMERO DE CENAS</p>
+                <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Ajuste manualmente se quiser menos ou mais cenas que o padrão</p>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto", flexShrink: 0 }}>
+                <button onClick={() => setCustomScenes(Math.max(1, targetScenes - 1))}
+                  style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.text, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
+                <input type="number" min="1" max="200" value={targetScenes}
+                  onChange={e => setCustomScenes(Math.max(1, Math.min(200, Number(e.target.value))))}
+                  style={{ width: 64, textAlign: "center", fontSize: 16, fontWeight: 600, padding: "6px 8px", borderRadius: 8, border: `1px solid ${C.purple}`, background: C.surface, color: C.purpleLight }} />
+                <button onClick={() => setCustomScenes(Math.min(200, targetScenes + 1))}
+                  style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.text, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                {customScenes !== null && (
+                  <button onClick={() => setCustomScenes(null)}
+                    style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, cursor: "pointer" }}>
+                    Reset
+                  </button>
+                )}
               </div>
             </div>
 
