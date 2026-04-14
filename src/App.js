@@ -91,7 +91,37 @@ export default function App() {
   const estCost = (approvedCount * costPerImg).toFixed(2);
   const targetScenes = customScenes !== null ? customScenes : calcScenes(videoDuration);
 
-  const updateScene = (idx, field, val) =>
+  const [selectedForRegen, setSelectedForRegen] = useState(new Set());
+
+  const toggleRegen = (idx) => {
+    setSelectedForRegen(prev => {
+      const next = new Set(prev);
+      next.has(idx) ? next.delete(idx) : next.add(idx);
+      return next;
+    });
+  };
+
+  const selectAllErrors = () => {
+    const errorIdxs = scenes.reduce((acc, s, i) => s.status === "error" ? [...acc, i] : acc, []);
+    setSelectedForRegen(new Set(errorIdxs));
+  };
+
+  const regenSelected = async () => {
+    if (!selectedForRegen.size) return;
+    setBusy(true);
+    addLog(`Regerando ${selectedForRegen.size} imagens selecionadas...`);
+    let done = 0;
+    for (const idx of selectedForRegen) {
+      await generateImage(scenes[idx], idx);
+      done++;
+      setProgress(Math.round((done / selectedForRegen.size) * 100));
+      await new Promise(r => setTimeout(r, 800));
+    }
+    setSelectedForRegen(new Set());
+    setGeneratingIdx(null);
+    addLog(`Regeração concluída! ${done} imagens processadas.`, "success");
+    setBusy(false);
+  };
     setScenes(prev => prev.map((s, i) => i === idx ? { ...s, [field]: val } : s));
 
   const segmentScript = async () => {
@@ -129,7 +159,7 @@ VISUAL STYLE GUIDE by theme (adapt freely based on actual script content):
 For each scene generate:
 1. scene_desc: short description in Portuguese of what the scene represents (1 line)
 2. narration: exact lines from the script for that scene
-3. img_prompt: a detailed, professional English image prompt. Include: subject, setting, lighting, mood, camera angle, color palette, visual style. End every prompt with: "sharp focus, professional photography, high resolution, natural exposure, clean composition." Match the quality level of a premium editorial or brand campaign. The host never appears — but other people, faces, environments are welcome when they serve the story.
+3. img_prompt: a detailed, professional English image prompt. Include: subject, setting, lighting, mood, camera angle, color palette, visual style. End every prompt with: "sharp focus, professional photography, high resolution, natural exposure, clean composition." Match the quality level of a premium editorial or brand campaign. The host never appears — but other people, faces, environments are welcome when they serve the story. IMPORTANT TEXT RULE: avoid requesting screens, interfaces or surfaces with generic or random text. If text is visually relevant to the scene, specify the EXACT short words to display (max 4 words), for example: screen showing "Context. Task. Rules." in clean white typography. Never use placeholder or lorem ipsum style text.
 4. vid_prompt: short English motion prompt (slow zoom, parallax, pan, light shift). 1 sentence.
 
 RULES:
@@ -207,7 +237,20 @@ ${chunks[c]}`);
             || pd?.data?.images?.[0]?.url
             || pd?.data?.generated?.[0]
             || pd?.data?.generated;
-          const imgUrl = base64 ? `data:image/jpeg;base64,${base64}` : (typeof rawUrl === "string" ? rawUrl : null);
+
+          let imgUrl = base64 ? `data:image/jpeg;base64,${base64}` : (typeof rawUrl === "string" ? rawUrl : null);
+
+          if (imgUrl && !base64) {
+            try {
+              const imgRes = await fetch(`/api/download?url=${encodeURIComponent(imgUrl)}&filename=cena_${sc.scene}.jpg`);
+              const blob = await imgRes.blob();
+              imgUrl = URL.createObjectURL(blob);
+              addLog(`[Cena ${sc.scene}] Imagem em cache local (evita expiração).`, "info");
+            } catch {
+              addLog(`[Cena ${sc.scene}] Cache local falhou, usando URL original.`, "warn");
+            }
+          }
+
           setScenes(prev => prev.map((s, i) => i === idx ? { ...s, imgUrl, status: imgUrl ? "done" : "error" } : s));
           if (imgUrl) addLog(`[Cena ${sc.scene}] Imagem pronta.`, "success");
           else addLog(`[Cena ${sc.scene}] Sem imagem no retorno: ${JSON.stringify(pd).slice(0, 200)}`, "warn");
@@ -487,18 +530,45 @@ ${chunks[c]}`);
               </div>
               {doneCount > 0 && <Btn onClick={downloadAll} small>Baixar todas ({doneCount})</Btn>}
             </div>
+
+            {scenes.some(s => s.status === "error" || s.status === "done") && (
+              <div style={{ ...S.row, marginBottom: 14, padding: "10px 14px", background: C.card, borderRadius: 10, border: `1px solid ${C.border}` }}>
+                <span style={{ fontSize: 12, color: C.muted }}>
+                  {selectedForRegen.size > 0 ? `${selectedForRegen.size} selecionadas para regerar` : "Selecione imagens para regerar em lote"}
+                </span>
+                <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                  {scenes.some(s => s.status === "error") && (
+                    <Btn onClick={selectAllErrors} small>Selecionar erros</Btn>
+                  )}
+                  <Btn onClick={() => setSelectedForRegen(new Set(scenes.map((_, i) => i)))} small>Selecionar todas</Btn>
+                  {selectedForRegen.size > 0 && (
+                    <>
+                      <Btn onClick={() => setSelectedForRegen(new Set())} small>Limpar</Btn>
+                      <Btn onClick={regenSelected} disabled={busy} accent small>
+                        Regerar {selectedForRegen.size} imagem(ns)
+                      </Btn>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
             <div style={S.imgGrid}>
               {scenes.map((s, i) => {
                 const [stColor, stLabel] = statusCfg[s.status] || statusCfg.pending;
                 return (
-                  <div key={i} style={S.imgCard}>
-                    {s.imgUrl
-                      ? <img src={s.imgUrl} alt={`cena ${s.scene}`} style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", display: "block" }} />
-                      : <div style={{ width: "100%", aspectRatio: "16/9", background: C.card, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                          {generatingIdx === i && <div style={{ width: 20, height: 20, border: `2px solid ${C.purpleDim}`, borderTop: `2px solid ${C.purple}`, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />}
-                          <span style={{ fontSize: 11, color: stColor }}>{generatingIdx === i ? "Gerando..." : stLabel}</span>
-                        </div>
-                    }
+                  <div key={i} style={{ ...S.imgCard, outline: selectedForRegen.has(i) ? `2px solid ${C.purple}` : "none", outlineOffset: 2 }}>
+                    <div style={{ position: "relative" }}>
+                      {s.imgUrl
+                        ? <img src={s.imgUrl} alt={`cena ${s.scene}`} style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", display: "block" }} />
+                        : <div style={{ width: "100%", aspectRatio: "16/9", background: C.card, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                            {generatingIdx === i && <div style={{ width: 20, height: 20, border: `2px solid ${C.purpleDim}`, borderTop: `2px solid ${C.purple}`, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />}
+                            <span style={{ fontSize: 11, color: stColor }}>{generatingIdx === i ? "Gerando..." : stLabel}</span>
+                          </div>
+                      }
+                      <div onClick={() => toggleRegen(i)} style={{ position: "absolute", top: 6, left: 6, width: 20, height: 20, borderRadius: 4, border: `2px solid ${selectedForRegen.has(i) ? C.purple : "rgba(255,255,255,0.5)"}`, background: selectedForRegen.has(i) ? C.purple : "rgba(0,0,0,0.4)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {selectedForRegen.has(i) && <span style={{ color: "#fff", fontSize: 12, lineHeight: 1 }}>✓</span>}
+                      </div>
+                    </div>
                     <div style={{ padding: "10px 12px" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                         <span style={{ fontSize: 12, fontWeight: 600, color: C.purple }}>#{String(s.scene).padStart(2, "0")}</span>
