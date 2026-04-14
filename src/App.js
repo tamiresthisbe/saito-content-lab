@@ -1,7 +1,5 @@
 import { useState, useRef } from "react";
 
-const ANTHROPIC_KEY = process.env.REACT_APP_ANTHROPIC_KEY;
-
 const C = {
   bg: "#080c12",
   surface: "#0d1420",
@@ -56,11 +54,13 @@ export default function App() {
   const [script, setScript] = useState("");
   const [imgModel, setImgModel] = useState("flux-2-pro");
   const [videoDuration, setVideoDuration] = useState(5);
+  const [customScenes, setCustomScenes] = useState(null);
   const [scenes, setScenes] = useState([]);
   const [busy, setBusy] = useState(false);
   const [generatingIdx, setGeneratingIdx] = useState(null);
   const [log, setLog] = useState([]);
   const [progress, setProgress] = useState(0);
+  const [selectedForRegen, setSelectedForRegen] = useState(new Set());
   const logRef = useRef(null);
 
   const addLog = (msg, type = "info") => {
@@ -82,8 +82,6 @@ export default function App() {
     return d.content?.[0]?.text || "";
   };
 
-  const [customScenes, setCustomScenes] = useState(null);
-
   const calcScenes = (m) => Math.round(m * 60 / 6);
   const approvedCount = scenes.filter(s => s.approved).length;
   const doneCount = scenes.filter(s => s.status === "done").length;
@@ -91,7 +89,8 @@ export default function App() {
   const estCost = (approvedCount * costPerImg).toFixed(2);
   const targetScenes = customScenes !== null ? customScenes : calcScenes(videoDuration);
 
-  const [selectedForRegen, setSelectedForRegen] = useState(new Set());
+  const updateScene = (idx, field, val) =>
+    setScenes(prev => prev.map((s, i) => i === idx ? { ...s, [field]: val } : s));
 
   const toggleRegen = (idx) => {
     setSelectedForRegen(prev => {
@@ -105,24 +104,6 @@ export default function App() {
     const errorIdxs = scenes.reduce((acc, s, i) => s.status === "error" ? [...acc, i] : acc, []);
     setSelectedForRegen(new Set(errorIdxs));
   };
-
-  const regenSelected = async () => {
-    if (!selectedForRegen.size) return;
-    setBusy(true);
-    addLog(`Regerando ${selectedForRegen.size} imagens selecionadas...`);
-    let done = 0;
-    for (const idx of selectedForRegen) {
-      await generateImage(scenes[idx], idx);
-      done++;
-      setProgress(Math.round((done / selectedForRegen.size) * 100));
-      await new Promise(r => setTimeout(r, 800));
-    }
-    setSelectedForRegen(new Set());
-    setGeneratingIdx(null);
-    addLog(`Regeração concluída! ${done} imagens processadas.`, "success");
-    setBusy(false);
-  };
-    setScenes(prev => prev.map((s, i) => i === idx ? { ...s, [field]: val } : s));
 
   const segmentScript = async () => {
     if (!script.trim()) return;
@@ -217,10 +198,7 @@ ${chunks[c]}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${d?.message || d?.error || JSON.stringify(d)}`);
 
       const taskId = d?.data?.task_id;
-      if (!taskId) {
-        addLog(`[Cena ${sc.scene}] Sem task_id: ${JSON.stringify(d).slice(0, 150)}`, "warn");
-        throw new Error("Sem task_id na resposta");
-      }
+      if (!taskId) throw new Error(`Sem task_id: ${JSON.stringify(d).slice(0, 150)}`);
 
       addLog(`[Cena ${sc.scene}] Task ${taskId} — aguardando...`);
 
@@ -238,14 +216,16 @@ ${chunks[c]}`);
             || pd?.data?.generated?.[0]
             || pd?.data?.generated;
 
-          let imgUrl = base64 ? `data:image/jpeg;base64,${base64}` : (typeof rawUrl === "string" ? rawUrl : null);
+          let imgUrl = base64
+            ? `data:image/jpeg;base64,${base64}`
+            : (typeof rawUrl === "string" ? rawUrl : null);
 
           if (imgUrl && !base64) {
             try {
               const imgRes = await fetch(`/api/download?url=${encodeURIComponent(imgUrl)}&filename=cena_${sc.scene}.jpg`);
               const blob = await imgRes.blob();
               imgUrl = URL.createObjectURL(blob);
-              addLog(`[Cena ${sc.scene}] Imagem em cache local (evita expiração).`, "info");
+              addLog(`[Cena ${sc.scene}] Imagem em cache local.`, "info");
             } catch {
               addLog(`[Cena ${sc.scene}] Cache local falhou, usando URL original.`, "warn");
             }
@@ -277,7 +257,7 @@ ${chunks[c]}`);
   const runPipeline = async () => {
     const toGen = scenes.filter(s => s.approved && s.status !== "done");
     if (!toGen.length) return;
-    setBusy(true); setTab("gerar");
+    setBusy(true); setTab("gerar"); setProgress(0);
     addLog(`Iniciando geração de ${toGen.length} imagens com ${imgModel}...`);
     let done = 0;
     for (let i = 0; i < scenes.length; i++) {
@@ -292,10 +272,37 @@ ${chunks[c]}`);
     setBusy(false);
   };
 
+  const regenSelected = async () => {
+    if (!selectedForRegen.length) return;
+    setBusy(true); setProgress(0);
+    addLog(`Regerando ${selectedForRegen.length} imagens selecionadas...`);
+    let done = 0;
+    const total = selectedForRegen.length;
+    for (const idx of selectedForRegen) {
+      await generateImage(scenes[idx], idx);
+      done++;
+      setProgress(Math.round((done / total) * 100));
+      await new Promise(r => setTimeout(r, 800));
+    }
+    setSelectedForRegen([]);
+    setGeneratingIdx(null);
+    addLog(`Regeração concluída! ${done} imagens processadas.`, "success");
+    setBusy(false);
+  };
+
   const downloadImage = async (sc) => {
     if (!sc.imgUrl) return;
     try {
       const filename = `cena_${String(sc.scene).padStart(2, "0")}.jpg`;
+      if (sc.imgUrl.startsWith("blob:") || sc.imgUrl.startsWith("data:")) {
+        const a = document.createElement("a");
+        a.href = sc.imgUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
+      }
       const encoded = encodeURIComponent(sc.imgUrl);
       const res = await fetch(`/api/download?url=${encoded}&filename=${filename}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -314,7 +321,7 @@ ${chunks[c]}`);
     }
   };
 
-  const downloadAll = () => scenes.filter(s => s.imgUrl).forEach((s, i) => setTimeout(() => downloadImage(s), i * 300));
+  const downloadAll = () => scenes.filter(s => s.imgUrl).forEach((s, i) => setTimeout(() => downloadImage(s), i * 500));
   const copyText = (t) => navigator.clipboard.writeText(t);
 
   const logColor = { info: C.muted, success: C.success, error: C.error, warn: C.warn };
@@ -340,7 +347,7 @@ ${chunks[c]}`);
     progressBar: { height: 3, background: C.border, borderRadius: 2, overflow: "hidden", marginBottom: 20 },
     progressFill: { height: "100%", background: C.purple, borderRadius: 2, transition: "width 0.4s" },
     sceneCard: (approved) => ({ background: C.surface, border: `1px solid ${approved ? C.border : C.faint}`, borderRadius: 10, padding: "14px 16px", marginBottom: 10 }),
-    imgGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 },
+    imgGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 },
     imgCard: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" },
     vidCard: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px", marginBottom: 10, display: "flex", gap: 14, alignItems: "flex-start" },
     logBox: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px", maxHeight: 420, overflowY: "auto" },
@@ -515,6 +522,7 @@ ${chunks[c]}`);
                 <div style={S.progressBar}><div style={{ ...S.progressFill, width: `${progress}%` }} /></div>
               </div>
             )}
+
             <div style={{ ...S.row, marginBottom: 16 }}>
               <div style={S.stat}>
                 <div style={{ fontSize: 20, fontWeight: 600, color: C.purpleLight }}>{doneCount}</div>
@@ -531,32 +539,33 @@ ${chunks[c]}`);
               {doneCount > 0 && <Btn onClick={downloadAll} small>Baixar todas ({doneCount})</Btn>}
             </div>
 
-            {scenes.some(s => s.status === "error" || s.status === "done") && (
+            {scenes.length > 0 && (
               <div style={{ ...S.row, marginBottom: 14, padding: "10px 14px", background: C.card, borderRadius: 10, border: `1px solid ${C.border}` }}>
                 <span style={{ fontSize: 12, color: C.muted }}>
-                  {selectedForRegen.size > 0 ? `${selectedForRegen.size} selecionadas para regerar` : "Selecione imagens para regerar em lote"}
+                  {selectedForRegen.length > 0 ? `${selectedForRegen.length} selecionadas para regerar` : "Clique nas imagens para selecionar e regerar em lote"}
                 </span>
-                <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {scenes.some(s => s.status === "error") && (
                     <Btn onClick={selectAllErrors} small>Selecionar erros</Btn>
                   )}
-                  <Btn onClick={() => setSelectedForRegen(new Set(scenes.map((_, i) => i)))} small>Selecionar todas</Btn>
-                  {selectedForRegen.size > 0 && (
+                  <Btn onClick={() => setSelectedForRegen(scenes.map((_, i) => i))} small>Selecionar todas</Btn>
+                  {selectedForRegen.length > 0 && (
                     <>
-                      <Btn onClick={() => setSelectedForRegen(new Set())} small>Limpar</Btn>
+                      <Btn onClick={() => setSelectedForRegen([])} small>Limpar</Btn>
                       <Btn onClick={regenSelected} disabled={busy} accent small>
-                        Regerar {selectedForRegen.size} imagem(ns)
+                        Regerar {selectedForRegen.length} imagem(ns)
                       </Btn>
                     </>
                   )}
                 </div>
               </div>
             )}
+
             <div style={S.imgGrid}>
               {scenes.map((s, i) => {
                 const [stColor, stLabel] = statusCfg[s.status] || statusCfg.pending;
                 return (
-                  <div key={i} style={{ ...S.imgCard, outline: selectedForRegen.has(i) ? `2px solid ${C.purple}` : "none", outlineOffset: 2 }}>
+                  <div key={i} style={{ ...S.imgCard, outline: isSelected(i) ? `2px solid ${C.purple}` : "none", outlineOffset: 2 }}>
                     <div style={{ position: "relative" }}>
                       {s.imgUrl
                         ? <img src={s.imgUrl} alt={`cena ${s.scene}`} style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", display: "block" }} />
@@ -565,8 +574,9 @@ ${chunks[c]}`);
                             <span style={{ fontSize: 11, color: stColor }}>{generatingIdx === i ? "Gerando..." : stLabel}</span>
                           </div>
                       }
-                      <div onClick={() => toggleRegen(i)} style={{ position: "absolute", top: 6, left: 6, width: 20, height: 20, borderRadius: 4, border: `2px solid ${selectedForRegen.has(i) ? C.purple : "rgba(255,255,255,0.5)"}`, background: selectedForRegen.has(i) ? C.purple : "rgba(0,0,0,0.4)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        {selectedForRegen.has(i) && <span style={{ color: "#fff", fontSize: 12, lineHeight: 1 }}>✓</span>}
+                      <div onClick={() => toggleRegen(i)}
+                        style={{ position: "absolute", top: 6, left: 6, width: 20, height: 20, borderRadius: 4,                         border: `2px solid ${isSelected(i) ? C.purple : "rgba(255,255,255,0.5)"}`, background: isSelected(i) ? C.purple : "rgba(0,0,0,0.4)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {isSelected(i) && <span style={{ color: "#fff", fontSize: 12, lineHeight: 1 }}>✓</span>}
                       </div>
                     </div>
                     <div style={{ padding: "10px 12px" }}>
