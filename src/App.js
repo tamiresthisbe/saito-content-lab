@@ -1,19 +1,10 @@
 import { useState, useRef } from "react";
 
 const C = {
-  bg: "#080c12",
-  surface: "#0d1420",
-  card: "#111b2a",
-  border: "#1e2d45",
-  purple: "#3d8ef5",
-  purpleLight: "#7ab8ff",
-  purpleDim: "#0f2a55",
-  text: "#ddeeff",
-  muted: "#5a7a99",
-  faint: "#1e3050",
-  success: "#3dd68c",
-  warn: "#f0a500",
-  error: "#f04f4f",
+  bg: "#080c12", surface: "#0d1420", card: "#111b2a", border: "#1e2d45",
+  purple: "#3d8ef5", purpleLight: "#7ab8ff", purpleDim: "#0f2a55",
+  text: "#ddeeff", muted: "#5a7a99", faint: "#1e3050",
+  success: "#3dd68c", warn: "#f0a500", error: "#f04f4f",
 };
 
 const MODELS_IMG = [
@@ -36,16 +27,12 @@ const Tag = ({ children, color = C.purple }) => (
 
 const Btn = ({ children, onClick, disabled, accent, small }) => (
   <button onClick={onClick} disabled={disabled} style={{
-    padding: small ? "6px 14px" : "10px 22px",
-    fontSize: small ? 12 : 13,
-    fontWeight: 500,
-    cursor: disabled ? "not-allowed" : "pointer",
-    borderRadius: 8,
+    padding: small ? "6px 14px" : "10px 22px", fontSize: small ? 12 : 13, fontWeight: 500,
+    cursor: disabled ? "not-allowed" : "pointer", borderRadius: 8,
     border: `1px solid ${accent ? C.purple : C.border}`,
     background: accent ? C.purpleDim : "transparent",
     color: disabled ? C.muted : (accent ? C.purpleLight : C.text),
-    letterSpacing: "0.03em",
-    opacity: disabled ? 0.5 : 1,
+    letterSpacing: "0.03em", opacity: disabled ? 0.5 : 1,
   }}>{children}</button>
 );
 
@@ -60,7 +47,7 @@ export default function App() {
   const [generatingIdx, setGeneratingIdx] = useState(null);
   const [log, setLog] = useState([]);
   const [progress, setProgress] = useState(0);
-  const [selectedForRegen, setSelectedForRegen] = useState(new Set());
+  const [regenList, setRegenList] = useState([]);
   const logRef = useRef(null);
 
   const addLog = (msg, type = "info") => {
@@ -72,11 +59,7 @@ export default function App() {
     const res = await fetch("/api/claude", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 8000,
-        messages: [{ role: "user", content: prompt }]
-      })
+      body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 8000, messages: [{ role: "user", content: prompt }] })
     });
     const d = await res.json();
     return d.content?.[0]?.text || "";
@@ -92,30 +75,19 @@ export default function App() {
   const updateScene = (idx, field, val) =>
     setScenes(prev => prev.map((s, i) => i === idx ? { ...s, [field]: val } : s));
 
-  const toggleRegen = (idx) => {
-    setSelectedForRegen(prev => {
-      const next = new Set(prev);
-      next.has(idx) ? next.delete(idx) : next.add(idx);
-      return next;
-    });
-  };
-
-  const selectAllErrors = () => {
-    const errorIdxs = scenes.reduce((acc, s, i) => s.status === "error" ? [...acc, i] : acc, []);
-    setSelectedForRegen(new Set(errorIdxs));
-  };
+  const toggleRegen = (idx) =>
+    setRegenList(prev => prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]);
 
   const segmentScript = async () => {
     if (!script.trim()) return;
     const wordCount = script.trim().split(/\s+/).length;
-    setBusy(true); setScenes([]); setLog([]); setProgress(0);
+    setBusy(true); setScenes([]); setLog([]); setProgress(0); setRegenList([]);
     addLog(`Roteiro: ~${wordCount} palavras · Duração: ${videoDuration}min · Meta: ${targetScenes} cenas`);
     try {
       const words = script.trim().split(/\s+/);
-      const chunkSize = 100;
       const chunks = [];
-      for (let i = 0; i < words.length; i += chunkSize)
-        chunks.push(words.slice(i, i + chunkSize).join(" "));
+      for (let i = 0; i < words.length; i += 100)
+        chunks.push(words.slice(i, i + 100).join(" "));
       const scenesPerChunk = Math.ceil(targetScenes / chunks.length);
       addLog(`Processando em ${chunks.length} partes (~${scenesPerChunk} cenas cada)...`);
       let allScenes = [], sceneCounter = 1;
@@ -123,7 +95,6 @@ export default function App() {
       for (let c = 0; c < chunks.length; c++) {
         addLog(`Parte ${c + 1} de ${chunks.length}...`);
         setProgress(Math.round(((c + 1) / chunks.length) * 100));
-
         const raw = await callClaude(`
 You are an expert art director and prompt engineer specializing in faceless YouTube channels — where the HOST does not appear, but the video can freely include people, faces, hands, environments, and any visual elements that serve the story.
 
@@ -149,9 +120,7 @@ RULES:
 - Think of scenes as a visual story arc: establish context early, build in the middle, resolve or inspire at the end.
 - Each img_prompt must be unique and specific to that script moment — no generic shots.
 - Respond ONLY with a valid JSON array. No markdown, no explanation. Start with [ end with ].
-
 FORMAT: [{"scene":${sceneCounter},"scene_desc":"...","narration":"...","img_prompt":"...","vid_prompt":"..."}]
-
 SCRIPT EXCERPT:
 ${chunks[c]}`);
 
@@ -163,7 +132,6 @@ ${chunks[c]}`);
           sceneCounter += parsed.length;
           addLog(`Parte ${c + 1}: ${parsed.length} cenas.`, "success");
         } catch { addLog(`Parte ${c + 1}: erro de parse.`, "warn"); }
-
         if (c < chunks.length - 1) await new Promise(r => setTimeout(r, 5000));
       }
 
@@ -172,10 +140,7 @@ ${chunks[c]}`);
       setScenes(allScenes.map(s => ({ ...s, approved: true, imgUrl: null, status: "pending", editMode: false })));
       addLog(`${allScenes.length} cenas criadas com sucesso.`, "success");
       setTab("validar");
-    } catch (e) {
-      addLog("Erro: " + e.message, "error");
-      setTab("log");
-    }
+    } catch (e) { addLog("Erro: " + e.message, "error"); setTab("log"); }
     setBusy(false);
   };
 
@@ -183,7 +148,6 @@ ${chunks[c]}`);
     try {
       setGeneratingIdx(idx);
       setScenes(prev => prev.map((s, i) => i === idx ? { ...s, status: "generating" } : s));
-
       if (isRetry) addLog(`[Cena ${sc.scene}] Retentando...`, "warn");
 
       const res = await fetch("/api/freepik", {
@@ -191,15 +155,12 @@ ${chunks[c]}`);
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: sc.img_prompt })
       });
-
       addLog(`[Cena ${sc.scene}] HTTP ${res.status}`);
       const d = await res.json();
-
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${d?.message || d?.error || JSON.stringify(d)}`);
 
       const taskId = d?.data?.task_id;
       if (!taskId) throw new Error(`Sem task_id: ${JSON.stringify(d).slice(0, 150)}`);
-
       addLog(`[Cena ${sc.scene}] Task ${taskId} — aguardando...`);
 
       for (let i = 0; i < 40; i++) {
@@ -215,42 +176,25 @@ ${chunks[c]}`);
             || pd?.data?.images?.[0]?.url
             || pd?.data?.generated?.[0]
             || pd?.data?.generated;
-
-          let imgUrl = base64
+          const imgUrl = base64
             ? `data:image/jpeg;base64,${base64}`
             : (typeof rawUrl === "string" ? rawUrl : null);
-
-          if (imgUrl && !base64) {
-            try {
-              const imgRes = await fetch(`/api/download?url=${encodeURIComponent(imgUrl)}&filename=cena_${sc.scene}.jpg`);
-              if (imgRes.ok) {
-                const blob = await imgRes.blob();
-                imgUrl = URL.createObjectURL(blob);
-                addLog(`[Cena ${sc.scene}] Imagem em cache local.`, "info");
-              } else {
-                addLog(`[Cena ${sc.scene}] Cache retornou ${imgRes.status}, usando URL original.`, "warn");
-              }
-            } catch (e) {
-              addLog(`[Cena ${sc.scene}] Cache falhou (${e.message}), usando URL original.`, "warn");
-            }
-          }
-
           setScenes(prev => prev.map((s, i) => i === idx ? { ...s, imgUrl, status: imgUrl ? "done" : "error" } : s));
           if (imgUrl) addLog(`[Cena ${sc.scene}] Imagem pronta.`, "success");
-          else addLog(`[Cena ${sc.scene}] Sem imagem no retorno: ${JSON.stringify(pd).slice(0, 200)}`, "warn");
+          else addLog(`[Cena ${sc.scene}] Sem imagem no retorno.`, "warn");
           return !!imgUrl;
         }
 
         if (status === "failed" || status === "FAILED") {
           if (!isRetry) {
-            addLog(`[Cena ${sc.scene}] Falhou — aguardando 5s e retentando...`, "warn");
+            addLog(`[Cena ${sc.scene}] Falhou — retentando em 5s...`, "warn");
             await new Promise(r => setTimeout(r, 5000));
             return await generateImage(sc, idx, true);
           }
           throw new Error(`Falhou novamente. Edite o prompt na aba Validar e clique em Tentar.`);
         }
       }
-      throw new Error("Timeout: imagem não ficou pronta em 160 segundos");
+      throw new Error("Timeout após 160 segundos.");
     } catch (e) {
       setScenes(prev => prev.map((s, i) => i === idx ? { ...s, status: "error" } : s));
       addLog(`[Cena ${sc.scene}] ERRO: ${e.message}`, "error");
@@ -277,37 +221,30 @@ ${chunks[c]}`);
   };
 
   const regenSelected = async () => {
-    if (!selectedForRegen.length) return;
+    if (!regenList.length) return;
     setBusy(true); setProgress(0);
-    addLog(`Regerando ${selectedForRegen.length} imagens selecionadas...`);
+    addLog(`Regerando ${regenList.length} imagens...`);
     let done = 0;
-    const total = selectedForRegen.length;
-    for (const idx of selectedForRegen) {
+    for (const idx of regenList) {
       await generateImage(scenes[idx], idx);
       done++;
-      setProgress(Math.round((done / total) * 100));
+      setProgress(Math.round((done / regenList.length) * 100));
       await new Promise(r => setTimeout(r, 800));
     }
-    setSelectedForRegen([]);
+    setRegenList([]);
     setGeneratingIdx(null);
-    addLog(`Regeração concluída! ${done} imagens processadas.`, "success");
+    addLog(`Regeração concluída!`, "success");
     setBusy(false);
   };
 
-  const downloadImage = (sc) => {
-    if (!sc.imgUrl) return;
-    window.open(sc.imgUrl, "_blank");
-  };
-
-  const downloadAll = () => scenes.filter(s => s.imgUrl).forEach((s, i) => setTimeout(() => downloadImage(s), i * 500));
+  const openImage = (sc) => { if (sc.imgUrl) window.open(sc.imgUrl, "_blank"); };
+  const openAll = () => scenes.filter(s => s.imgUrl).forEach((s, i) => setTimeout(() => openImage(s), i * 600));
   const copyText = (t) => navigator.clipboard.writeText(t);
 
   const logColor = { info: C.muted, success: C.success, error: C.error, warn: C.warn };
   const statusCfg = {
-    pending: [C.faint, "Aguardando"],
-    generating: [C.warn, "Gerando..."],
-    done: [C.success, "Pronta"],
-    error: [C.error, "Erro"]
+    pending: [C.faint, "Aguardando"], generating: [C.warn, "Gerando..."],
+    done: [C.success, "Pronta"], error: [C.error, "Erro"]
   };
 
   const S = {
@@ -326,7 +263,7 @@ ${chunks[c]}`);
     progressFill: { height: "100%", background: C.purple, borderRadius: 2, transition: "width 0.4s" },
     sceneCard: (approved) => ({ background: C.surface, border: `1px solid ${approved ? C.border : C.faint}`, borderRadius: 10, padding: "14px 16px", marginBottom: 10 }),
     imgGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 },
-    imgCard: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" },
+    imgCard: (selected) => ({ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", outline: selected ? `2px solid ${C.purple}` : "none", outlineOffset: 2 }),
     vidCard: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px", marginBottom: 10, display: "flex", gap: 14, alignItems: "flex-start" },
     logBox: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px", maxHeight: 420, overflowY: "auto" },
     sectionTitle: { fontSize: 12, fontWeight: 500, color: C.muted, letterSpacing: "0.08em", marginBottom: 14 },
@@ -363,53 +300,36 @@ ${chunks[c]}`);
           <div>
             <div style={S.card}>
               <span style={S.label}>ROTEIRO DO EPISÓDIO</span>
-              <textarea style={S.textarea} value={script} onChange={e => setScript(e.target.value)}
-                placeholder="Cole o roteiro completo aqui..." />
+              <textarea style={S.textarea} value={script} onChange={e => setScript(e.target.value)} placeholder="Cole o roteiro completo aqui..." />
             </div>
 
             <div style={S.card}>
               <p style={S.sectionTitle}>DURAÇÃO DO VÍDEO</p>
               <div style={{ ...S.row, marginBottom: 14 }}>
-                <div style={S.stat}>
-                  <div style={{ fontSize: 20, fontWeight: 600, color: C.purpleLight }}>{videoDuration}<span style={{ fontSize: 13, color: C.muted }}>min</span></div>
-                  <div style={{ fontSize: 11, color: C.muted, letterSpacing: "0.06em" }}>DURAÇÃO</div>
-                </div>
-                <div style={S.stat}>
-                  <div style={{ fontSize: 20, fontWeight: 600, color: C.purpleLight }}>{targetScenes}</div>
-                  <div style={{ fontSize: 11, color: C.muted, letterSpacing: "0.06em" }}>CENAS</div>
-                </div>
-                <div style={S.stat}>
-                  <div style={{ fontSize: 20, fontWeight: 600, color: C.success }}>${(targetScenes * costPerImg).toFixed(2)}</div>
-                  <div style={{ fontSize: 11, color: C.muted, letterSpacing: "0.06em" }}>EST. API</div>
-                </div>
+                <div style={S.stat}><div style={{ fontSize: 20, fontWeight: 600, color: C.purpleLight }}>{videoDuration}<span style={{ fontSize: 13, color: C.muted }}>min</span></div><div style={{ fontSize: 11, color: C.muted }}>DURAÇÃO</div></div>
+                <div style={S.stat}><div style={{ fontSize: 20, fontWeight: 600, color: C.purpleLight }}>{targetScenes}</div><div style={{ fontSize: 11, color: C.muted }}>CENAS</div></div>
+                <div style={S.stat}><div style={{ fontSize: 20, fontWeight: 600, color: C.success }}>${(targetScenes * costPerImg).toFixed(2)}</div><div style={{ fontSize: 11, color: C.muted }}>EST. API</div></div>
               </div>
               <input type="range" min="1" max="20" step="1" value={videoDuration}
                 onChange={e => { setVideoDuration(Number(e.target.value)); setCustomScenes(null); }}
                 style={{ width: "100%", accentColor: C.purple }} />
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.faint, marginTop: 4 }}>
-                {[1, 5, 10, 15, 20].map(v => <span key={v}>{v}min</span>)}
+                {[1,5,10,15,20].map(v => <span key={v}>{v}min</span>)}
               </div>
             </div>
 
             <div style={{ ...S.card, display: "flex", alignItems: "center", gap: 16 }}>
               <div>
                 <p style={{ ...S.sectionTitle, marginBottom: 4 }}>NÚMERO DE CENAS</p>
-                <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Ajuste manualmente se quiser menos ou mais cenas que o padrão</p>
+                <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Ajuste manualmente se quiser menos ou mais cenas</p>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto", flexShrink: 0 }}>
-                <button onClick={() => setCustomScenes(Math.max(1, targetScenes - 1))}
-                  style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.text, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
+                <button onClick={() => setCustomScenes(Math.max(1, targetScenes - 1))} style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.text, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
                 <input type="number" min="1" max="200" value={targetScenes}
                   onChange={e => setCustomScenes(Math.max(1, Math.min(200, Number(e.target.value))))}
                   style={{ width: 64, textAlign: "center", fontSize: 16, fontWeight: 600, padding: "6px 8px", borderRadius: 8, border: `1px solid ${C.purple}`, background: C.surface, color: C.purpleLight }} />
-                <button onClick={() => setCustomScenes(Math.min(200, targetScenes + 1))}
-                  style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.text, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
-                {customScenes !== null && (
-                  <button onClick={() => setCustomScenes(null)}
-                    style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, cursor: "pointer" }}>
-                    Reset
-                  </button>
-                )}
+                <button onClick={() => setCustomScenes(Math.min(200, targetScenes + 1))} style={{ width: 32, height: 32, borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.text, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+                {customScenes !== null && <button onClick={() => setCustomScenes(null)} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, cursor: "pointer" }}>Reset</button>}
               </div>
             </div>
 
@@ -441,40 +361,29 @@ ${chunks[c]}`);
             ) : (
               <>
                 <div style={{ ...S.row, marginBottom: 16 }}>
-                  <div style={S.stat}>
-                    <div style={{ fontSize: 20, fontWeight: 600, color: C.purpleLight }}>{approvedCount}</div>
-                    <div style={{ fontSize: 11, color: C.muted, letterSpacing: "0.06em" }}>APROVADAS</div>
-                  </div>
-                  <div style={S.stat}>
-                    <div style={{ fontSize: 20, fontWeight: 600, color: C.success }}>${estCost}</div>
-                    <div style={{ fontSize: 11, color: C.muted, letterSpacing: "0.06em" }}>CUSTO EST.</div>
-                  </div>
+                  <div style={S.stat}><div style={{ fontSize: 20, fontWeight: 600, color: C.purpleLight }}>{approvedCount}</div><div style={{ fontSize: 11, color: C.muted }}>APROVADAS</div></div>
+                  <div style={S.stat}><div style={{ fontSize: 20, fontWeight: 600, color: C.success }}>${estCost}</div><div style={{ fontSize: 11, color: C.muted }}>CUSTO EST.</div></div>
                   <Btn onClick={() => setScenes(s => s.map(sc => ({ ...sc, approved: true })))} small>Aprovar todas</Btn>
                   <Btn onClick={() => setScenes(s => s.map(sc => ({ ...sc, approved: false })))} small>Desmarcar</Btn>
                 </div>
                 {scenes.map((s, i) => (
                   <div key={i} style={S.sceneCard(s.approved)}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: s.editMode ? 12 : 0 }}>
-                      <input type="checkbox" checked={s.approved} onChange={e => updateScene(i, "approved", e.target.checked)}
-                        style={{ accentColor: C.purple, width: 15, height: 15, cursor: "pointer" }} />
+                      <input type="checkbox" checked={s.approved} onChange={e => updateScene(i, "approved", e.target.checked)} style={{ accentColor: C.purple, width: 15, height: 15, cursor: "pointer" }} />
                       <span style={{ fontSize: 12, fontWeight: 600, color: C.purple }}>#{String(s.scene).padStart(2, "0")}</span>
                       <span style={{ fontSize: 13, color: C.text, flex: 1 }}>{s.scene_desc}</span>
-                      <button onClick={() => updateScene(i, "editMode", !s.editMode)}
-                        style={{ fontSize: 11, padding: "3px 10px", cursor: "pointer", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.muted }}>
+                      <button onClick={() => updateScene(i, "editMode", !s.editMode)} style={{ fontSize: 11, padding: "3px 10px", cursor: "pointer", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.muted }}>
                         {s.editMode ? "Fechar" : "Editar"}
                       </button>
                     </div>
                     {s.editMode && (
                       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
                         <span style={S.label}>PROMPT DE IMAGEM</span>
-                        <textarea value={s.img_prompt} onChange={e => updateScene(i, "img_prompt", e.target.value)}
-                          style={{ ...S.textarea, minHeight: 80, fontSize: 12 }} />
+                        <textarea value={s.img_prompt} onChange={e => updateScene(i, "img_prompt", e.target.value)} style={{ ...S.textarea, minHeight: 80, fontSize: 12 }} />
                         <span style={S.label}>NARRAÇÃO</span>
-                        <textarea value={s.narration} onChange={e => updateScene(i, "narration", e.target.value)}
-                          style={{ ...S.textarea, minHeight: 50, fontSize: 12 }} />
+                        <textarea value={s.narration} onChange={e => updateScene(i, "narration", e.target.value)} style={{ ...S.textarea, minHeight: 50, fontSize: 12 }} />
                         <span style={S.label}>PROMPT DE VÍDEO</span>
-                        <textarea value={s.vid_prompt} onChange={e => updateScene(i, "vid_prompt", e.target.value)}
-                          style={{ ...S.textarea, minHeight: 50, fontSize: 12 }} />
+                        <textarea value={s.vid_prompt} onChange={e => updateScene(i, "vid_prompt", e.target.value)} style={{ ...S.textarea, minHeight: 50, fontSize: 12 }} />
                       </div>
                     )}
                   </div>
@@ -502,37 +411,26 @@ ${chunks[c]}`);
             )}
 
             <div style={{ ...S.row, marginBottom: 16 }}>
-              <div style={S.stat}>
-                <div style={{ fontSize: 20, fontWeight: 600, color: C.purpleLight }}>{doneCount}</div>
-                <div style={{ fontSize: 11, color: C.muted, letterSpacing: "0.06em" }}>GERADAS</div>
-              </div>
-              <div style={S.stat}>
-                <div style={{ fontSize: 20, fontWeight: 600, color: C.error }}>{scenes.filter(s => s.status === "error").length}</div>
-                <div style={{ fontSize: 11, color: C.muted, letterSpacing: "0.06em" }}>ERROS</div>
-              </div>
-              <div style={S.stat}>
-                <div style={{ fontSize: 20, fontWeight: 600, color: C.muted }}>{scenes.filter(s => s.status === "pending" || s.status === "generating").length}</div>
-                <div style={{ fontSize: 11, color: C.muted, letterSpacing: "0.06em" }}>PENDENTES</div>
-              </div>
-              {doneCount > 0 && <Btn onClick={downloadAll} small>Baixar todas ({doneCount})</Btn>}
+              <div style={S.stat}><div style={{ fontSize: 20, fontWeight: 600, color: C.purpleLight }}>{doneCount}</div><div style={{ fontSize: 11, color: C.muted }}>GERADAS</div></div>
+              <div style={S.stat}><div style={{ fontSize: 20, fontWeight: 600, color: C.error }}>{scenes.filter(s => s.status === "error").length}</div><div style={{ fontSize: 11, color: C.muted }}>ERROS</div></div>
+              <div style={S.stat}><div style={{ fontSize: 20, fontWeight: 600, color: C.muted }}>{scenes.filter(s => s.status === "pending" || s.status === "generating").length}</div><div style={{ fontSize: 11, color: C.muted }}>PENDENTES</div></div>
+              {doneCount > 0 && <Btn onClick={openAll} small>Abrir todas ({doneCount})</Btn>}
             </div>
 
             {scenes.length > 0 && (
               <div style={{ ...S.row, marginBottom: 14, padding: "10px 14px", background: C.card, borderRadius: 10, border: `1px solid ${C.border}` }}>
                 <span style={{ fontSize: 12, color: C.muted }}>
-                  {(Array.isArray(selectedForRegen) && selectedForRegen.length > 0) ? `${selectedForRegen.length} selecionadas para regerar` : "Clique nas imagens para selecionar e regerar em lote"}
+                  {regenList.length > 0 ? `${regenList.length} selecionadas para regerar` : "Clique nas imagens para selecionar e regerar em lote"}
                 </span>
                 <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {scenes.some(s => s.status === "error") && (
-                    <Btn onClick={selectAllErrors} small>Selecionar erros</Btn>
+                    <Btn onClick={() => setRegenList(scenes.reduce((a, s, i) => s.status === "error" ? [...a, i] : a, []))} small>Selecionar erros</Btn>
                   )}
-                  <Btn onClick={() => setSelectedForRegen(scenes.map((_, i) => i))} small>Selecionar todas</Btn>
-                  {Array.isArray(selectedForRegen) && selectedForRegen.length > 0 && (
+                  <Btn onClick={() => setRegenList(scenes.map((_, i) => i))} small>Selecionar todas</Btn>
+                  {regenList.length > 0 && (
                     <>
-                      <Btn onClick={() => setSelectedForRegen([])} small>Limpar</Btn>
-                      <Btn onClick={regenSelected} disabled={busy} accent small>
-                        Regerar {selectedForRegen.length} imagem(ns)
-                      </Btn>
+                      <Btn onClick={() => setRegenList([])} small>Limpar</Btn>
+                      <Btn onClick={regenSelected} disabled={busy} accent small>Regerar {regenList.length}</Btn>
                     </>
                   )}
                 </div>
@@ -542,8 +440,9 @@ ${chunks[c]}`);
             <div style={S.imgGrid}>
               {scenes.map((s, i) => {
                 const [stColor, stLabel] = statusCfg[s.status] || statusCfg.pending;
+                const selected = regenList.includes(i);
                 return (
-                  <div key={i} style={{ ...S.imgCard, outline: selectedForRegen.includes(i) ? `2px solid ${C.purple}` : "none", outlineOffset: 2 }}>
+                  <div key={i} style={S.imgCard(selected)}>
                     <div style={{ position: "relative" }}>
                       {s.imgUrl
                         ? <img src={s.imgUrl} alt={`cena ${s.scene}`} style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", display: "block" }} />
@@ -552,9 +451,8 @@ ${chunks[c]}`);
                             <span style={{ fontSize: 11, color: stColor }}>{generatingIdx === i ? "Gerando..." : stLabel}</span>
                           </div>
                       }
-                      <div onClick={() => toggleRegen(i)}
-                        style={{ position: "absolute", top: 6, left: 6, width: 20, height: 20, borderRadius: 4,                         border: `2px solid ${selectedForRegen.includes(i) ? C.purple : "rgba(255,255,255,0.5)"}`, background: selectedForRegen.includes(i) ? C.purple : "rgba(0,0,0,0.4)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        {selectedForRegen.includes(i) && <span style={{ color: "#fff", fontSize: 12, lineHeight: 1 }}>✓</span>}
+                      <div onClick={() => toggleRegen(i)} style={{ position: "absolute", top: 6, left: 6, width: 20, height: 20, borderRadius: 4, border: `2px solid ${selected ? C.purple : "rgba(255,255,255,0.5)"}`, background: selected ? C.purple : "rgba(0,0,0,0.4)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {selected && <span style={{ color: "#fff", fontSize: 12, lineHeight: 1 }}>✓</span>}
                       </div>
                     </div>
                     <div style={{ padding: "10px 12px" }}>
@@ -564,7 +462,7 @@ ${chunks[c]}`);
                       </div>
                       <p style={{ fontSize: 11, color: C.muted, margin: "0 0 8px", lineHeight: 1.4 }}>{s.scene_desc}</p>
                       <div style={{ display: "flex", gap: 6 }}>
-                        {s.imgUrl && <Btn onClick={() => downloadImage(s)} small>Baixar</Btn>}
+                        {s.imgUrl && <Btn onClick={() => openImage(s)} small>Abrir</Btn>}
                         {(s.status === "done" || s.status === "error") && (
                           <Btn onClick={async () => { setBusy(true); await generateImage(s, i); setGeneratingIdx(null); setBusy(false); }} disabled={busy} small>
                             {s.status === "error" ? "Tentar" : "Regerar"}
@@ -583,7 +481,7 @@ ${chunks[c]}`);
           <div>
             <div style={{ ...S.card, marginBottom: 20 }}>
               <p style={{ fontSize: 13, color: C.muted, margin: 0 }}>
-                Baixe as imagens geradas → acesse freepik.com → Gerador de vídeo → suba a imagem e cole o prompt abaixo. Coberto pelo seu Premium+.
+                Abra as imagens geradas → salve com botão direito → acesse freepik.com → Gerador de vídeo → suba a imagem e cole o prompt abaixo.
               </p>
             </div>
             {!scenes.length
@@ -603,8 +501,7 @@ ${chunks[c]}`);
                     </div>
                     <p style={{ fontSize: 12, color: C.text, margin: 0, lineHeight: 1.5 }}>{s.vid_prompt}</p>
                   </div>
-                  <button onClick={() => copyText(s.vid_prompt)}
-                    style={{ fontSize: 11, padding: "5px 12px", cursor: "pointer", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, flexShrink: 0 }}>
+                  <button onClick={() => copyText(s.vid_prompt)} style={{ fontSize: 11, padding: "5px 12px", cursor: "pointer", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, flexShrink: 0 }}>
                     Copiar
                   </button>
                 </div>
