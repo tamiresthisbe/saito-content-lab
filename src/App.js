@@ -223,11 +223,15 @@ ${chunks[c]}`);
           if (imgUrl && !base64) {
             try {
               const imgRes = await fetch(`/api/download?url=${encodeURIComponent(imgUrl)}&filename=cena_${sc.scene}.jpg`);
-              const blob = await imgRes.blob();
-              imgUrl = URL.createObjectURL(blob);
-              addLog(`[Cena ${sc.scene}] Imagem em cache local.`, "info");
-            } catch {
-              addLog(`[Cena ${sc.scene}] Cache local falhou, usando URL original.`, "warn");
+              if (imgRes.ok) {
+                const blob = await imgRes.blob();
+                imgUrl = URL.createObjectURL(blob);
+                addLog(`[Cena ${sc.scene}] Imagem em cache local.`, "info");
+              } else {
+                addLog(`[Cena ${sc.scene}] Cache local retornou ${imgRes.status}, usando URL original.`, "warn");
+              }
+            } catch (e) {
+              addLog(`[Cena ${sc.scene}] Cache local falhou (${e.message}), usando URL original.`, "warn");
             }
           }
 
