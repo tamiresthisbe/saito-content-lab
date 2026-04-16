@@ -520,14 +520,14 @@ ${chunks[c]}`);
             {scenes.length > 0 && (
               <div style={{ ...S.row, marginBottom: 14, padding: "10px 14px", background: C.card, borderRadius: 10, border: `1px solid ${C.border}` }}>
                 <span style={{ fontSize: 12, color: C.muted }}>
-                  {selectedForRegen.length > 0 ? `${selectedForRegen.length} selecionadas para regerar` : "Clique nas imagens para selecionar e regerar em lote"}
+                  {(Array.isArray(selectedForRegen) && selectedForRegen.length > 0) ? `${selectedForRegen.length} selecionadas para regerar` : "Clique nas imagens para selecionar e regerar em lote"}
                 </span>
                 <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {scenes.some(s => s.status === "error") && (
                     <Btn onClick={selectAllErrors} small>Selecionar erros</Btn>
                   )}
                   <Btn onClick={() => setSelectedForRegen(scenes.map((_, i) => i))} small>Selecionar todas</Btn>
-                  {selectedForRegen.length > 0 && (
+                  {Array.isArray(selectedForRegen) && selectedForRegen.length > 0 && (
                     <>
                       <Btn onClick={() => setSelectedForRegen([])} small>Limpar</Btn>
                       <Btn onClick={regenSelected} disabled={busy} accent small>
