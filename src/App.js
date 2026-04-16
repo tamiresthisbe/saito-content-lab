@@ -294,34 +294,9 @@ ${chunks[c]}`);
     setBusy(false);
   };
 
-  const downloadImage = async (sc) => {
+  const downloadImage = (sc) => {
     if (!sc.imgUrl) return;
-    const filename = `cena_${String(sc.scene).padStart(2, "0")}.jpg`;
-    try {
-      if (sc.imgUrl.startsWith("blob:") || sc.imgUrl.startsWith("data:")) {
-        const a = document.createElement("a");
-        a.href = sc.imgUrl;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        return;
-      }
-      const res = await fetch(`/api/download?url=${encodeURIComponent(sc.imgUrl)}&filename=${filename}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 3000);
-    } catch (e) {
-      addLog(`Erro no download: ${e.message}`, "warn");
-      window.open(sc.imgUrl, "_blank");
-    }
+    window.open(sc.imgUrl, "_blank");
   };
 
   const downloadAll = () => scenes.filter(s => s.imgUrl).forEach((s, i) => setTimeout(() => downloadImage(s), i * 500));
