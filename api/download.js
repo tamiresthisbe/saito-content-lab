@@ -7,30 +7,27 @@ export default async function handler(req, res) {
   if (!url) return res.status(400).json({ error: "url required" });
 
   try {
-    const response = await fetch(decodeURIComponent(url));
-    if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
+    const response = await fetch(decodeURIComponent(url), {
+      headers: { "Accept": "image/jpeg,image/*" }
+    });
 
-    const chunks = [];
-    const reader = response.body.getReader();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-    }
-    const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
-    const buffer = new Uint8Array(totalLength);
-    let offset = 0;
-    for (const chunk of chunks) {
-      buffer.set(chunk, offset);
-      offset += chunk.length;
+    if (!response.ok) {
+      return res.status(response.status).json({ error: `Upstream error: ${response.status}` });
     }
 
     const safeFilename = (filename || "cena.jpg").replace(/[^a-z0-9_.\-]/gi, "_");
-    res.setHeader("Content-Type", "image/jpeg");
+    const contentType = response.headers.get("content-type") || "image/jpeg";
+    const contentLength = response.headers.get("content-length");
+
+    res.setHeader("Content-Type", contentType);
     res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}"`);
-    res.setHeader("Content-Length", buffer.length);
-    res.status(200).end(Buffer.from(buffer));
+    if (contentLength) res.setHeader("Content-Length", contentLength);
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    res.status(200).end(buffer);
   } catch (e) {
+    console.error("Download error:", e.message);
     res.status(500).json({ error: e.message });
   }
 }
