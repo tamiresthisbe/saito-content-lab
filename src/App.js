@@ -228,10 +228,10 @@ ${chunks[c]}`);
                 imgUrl = URL.createObjectURL(blob);
                 addLog(`[Cena ${sc.scene}] Imagem em cache local.`, "info");
               } else {
-                addLog(`[Cena ${sc.scene}] Cache local retornou ${imgRes.status}, usando URL original.`, "warn");
+                addLog(`[Cena ${sc.scene}] Cache retornou ${imgRes.status}, usando URL original.`, "warn");
               }
             } catch (e) {
-              addLog(`[Cena ${sc.scene}] Cache local falhou (${e.message}), usando URL original.`, "warn");
+              addLog(`[Cena ${sc.scene}] Cache falhou (${e.message}), usando URL original.`, "warn");
             }
           }
 
@@ -296,8 +296,8 @@ ${chunks[c]}`);
 
   const downloadImage = async (sc) => {
     if (!sc.imgUrl) return;
+    const filename = `cena_${String(sc.scene).padStart(2, "0")}.jpg`;
     try {
-      const filename = `cena_${String(sc.scene).padStart(2, "0")}.jpg`;
       if (sc.imgUrl.startsWith("blob:") || sc.imgUrl.startsWith("data:")) {
         const a = document.createElement("a");
         a.href = sc.imgUrl;
@@ -307,8 +307,7 @@ ${chunks[c]}`);
         document.body.removeChild(a);
         return;
       }
-      const encoded = encodeURIComponent(sc.imgUrl);
-      const res = await fetch(`/api/download?url=${encoded}&filename=${filename}`);
+      const res = await fetch(`/api/download?url=${encodeURIComponent(sc.imgUrl)}&filename=${filename}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
