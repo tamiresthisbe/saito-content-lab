@@ -569,7 +569,7 @@ ${chunks[c]}`);
               {scenes.map((s, i) => {
                 const [stColor, stLabel] = statusCfg[s.status] || statusCfg.pending;
                 return (
-                  <div key={i} style={{ ...S.imgCard, outline: isSelected(i) ? `2px solid ${C.purple}` : "none", outlineOffset: 2 }}>
+                  <div key={i} style={{ ...S.imgCard, outline: selectedForRegen.includes(i) ? `2px solid ${C.purple}` : "none", outlineOffset: 2 }}>
                     <div style={{ position: "relative" }}>
                       {s.imgUrl
                         ? <img src={s.imgUrl} alt={`cena ${s.scene}`} style={{ width: "100%", aspectRatio: "16/9", objectFit: "cover", display: "block" }} />
@@ -579,8 +579,8 @@ ${chunks[c]}`);
                           </div>
                       }
                       <div onClick={() => toggleRegen(i)}
-                        style={{ position: "absolute", top: 6, left: 6, width: 20, height: 20, borderRadius: 4,                         border: `2px solid ${isSelected(i) ? C.purple : "rgba(255,255,255,0.5)"}`, background: isSelected(i) ? C.purple : "rgba(0,0,0,0.4)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        {isSelected(i) && <span style={{ color: "#fff", fontSize: 12, lineHeight: 1 }}>✓</span>}
+                        style={{ position: "absolute", top: 6, left: 6, width: 20, height: 20, borderRadius: 4,                         border: `2px solid ${selectedForRegen.includes(i) ? C.purple : "rgba(255,255,255,0.5)"}`, background: selectedForRegen.includes(i) ? C.purple : "rgba(0,0,0,0.4)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {selectedForRegen.includes(i) && <span style={{ color: "#fff", fontSize: 12, lineHeight: 1 }}>✓</span>}
                       </div>
                     </div>
                     <div style={{ padding: "10px 12px" }}>
