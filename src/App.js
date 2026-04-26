@@ -18,6 +18,7 @@ const TABS = [
   { id: "validar", label: "Validar", icon: "◈" },
   { id: "gerar", label: "Gerar", icon: "◉" },
   { id: "video", label: "Vídeo", icon: "▶" },
+  { id: "historico", label: "Histórico", icon: "◷" },
   { id: "log", label: "Log", icon: "≡" },
 ];
 
@@ -48,6 +49,16 @@ export default function App() {
   const [log, setLog] = useState([]);
   const [progress, setProgress] = useState(0);
   const [regenList, setRegenList] = useState([]);
+  const [historico, setHistorico] = useState(() => {
+    try {
+      const raw = localStorage.getItem("scl_historico");
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      const semana = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      return parsed.filter(h => h.timestamp > semana);
+    } catch { return []; }
+  });
+  const [historicoAberto, setHistoricoAberto] = useState(null);
   const logRef = useRef(null);
 
   const addLog = (msg, type = "info") => {
@@ -139,6 +150,7 @@ ${chunks[c]}`);
       allScenes = allScenes.map((s, i) => ({ ...s, scene: i + 1 }));
       setScenes(allScenes.map(s => ({ ...s, approved: true, imgUrl: null, status: "pending", editMode: false })));
       addLog(`${allScenes.length} cenas criadas com sucesso.`, "success");
+      salvarHistorico(allScenes, script);
       setTab("validar");
     } catch (e) { addLog("Erro: " + e.message, "error"); setTab("log"); }
     setBusy(false);
@@ -237,7 +249,41 @@ ${chunks[c]}`);
     setBusy(false);
   };
 
-  const openImage = (sc) => { if (sc.imgUrl) window.open(sc.imgUrl, "_blank"); };
+  const salvarHistorico = (scenesData, scriptText) => {
+    try {
+      const titulo = scriptText.trim().split("\n")[0].slice(0, 60) || "Episódio sem título";
+      const entrada = {
+        id: Date.now(),
+        timestamp: Date.now(),
+        titulo,
+        data: new Date().toLocaleDateString("pt-BR"),
+        hora: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+        cenas: scenesData.map(s => ({
+          scene: s.scene,
+          scene_desc: s.scene_desc,
+          narration: s.narration,
+          vid_prompt: s.vid_prompt,
+        }))
+      };
+      const semana = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const anterior = (() => {
+        try { return JSON.parse(localStorage.getItem("scl_historico") || "[]"); } catch { return []; }
+      })().filter(h => h.timestamp > semana);
+      const novo = [entrada, ...anterior].slice(0, 30);
+      localStorage.setItem("scl_historico", JSON.stringify(novo));
+      setHistorico(novo);
+      addLog(`Histórico salvo: "${titulo}"`, "success");
+    } catch (e) {
+      addLog(`Erro ao salvar histórico: ${e.message}`, "warn");
+    }
+  };
+
+  const deletarHistorico = (id) => {
+    const novo = historico.filter(h => h.id !== id);
+    localStorage.setItem("scl_historico", JSON.stringify(novo));
+    setHistorico(novo);
+    if (historicoAberto?.id === id) setHistoricoAberto(null);
+  };
   const openAll = () => scenes.filter(s => s.imgUrl).forEach((s, i) => setTimeout(() => openImage(s), i * 600));
   const copyText = (t) => navigator.clipboard.writeText(t);
 
@@ -507,6 +553,64 @@ ${chunks[c]}`);
                 </div>
               ))
             }
+          </div>
+        )}
+
+        {tab === "historico" && (
+          <div>
+            {!historico.length ? (
+              <div style={{ ...S.card, textAlign: "center", padding: 40 }}>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>◷</div>
+                <p style={{ color: C.muted, fontSize: 14 }}>Nenhum histórico ainda. Os prompts de vídeo serão salvos automaticamente ao segmentar um roteiro.</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: 16 }}>
+                <div style={{ width: 280, flexShrink: 0 }}>
+                  <p style={{ ...S.sectionTitle, marginBottom: 12 }}>EPISÓDIOS ({historico.length})</p>
+                  {historico.map(h => (
+                    <div key={h.id} onClick={() => setHistoricoAberto(h)}
+                      style={{ padding: "12px 14px", borderRadius: 10, border: `1px solid ${historicoAberto?.id === h.id ? C.purple : C.border}`, background: historicoAberto?.id === h.id ? C.purpleDim + "44" : C.surface, cursor: "pointer", marginBottom: 8 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                        <p style={{ fontSize: 13, fontWeight: 500, color: C.text, margin: 0, lineHeight: 1.4, flex: 1 }}>{h.titulo}</p>
+                        <button onClick={e => { e.stopPropagation(); deletarHistorico(h.id); }}
+                          style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, cursor: "pointer", flexShrink: 0 }}>✕</button>
+                      </div>
+                      <p style={{ fontSize: 11, color: C.muted, margin: "4px 0 0" }}>{h.data} às {h.hora} · {h.cenas.length} cenas</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {!historicoAberto ? (
+                    <div style={{ ...S.card, textAlign: "center", padding: 40 }}>
+                      <p style={{ color: C.muted, fontSize: 14 }}>Selecione um episódio para ver os prompts de vídeo.</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ ...S.card, marginBottom: 16 }}>
+                        <p style={{ fontSize: 15, fontWeight: 600, color: C.text, margin: "0 0 4px" }}>{historicoAberto.titulo}</p>
+                        <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>{historicoAberto.data} às {historicoAberto.hora} · {historicoAberto.cenas.length} cenas · salvo por 7 dias</p>
+                      </div>
+                      {historicoAberto.cenas.map((c, i) => (
+                        <div key={i} style={S.vidCard}>
+                          <div style={{ width: 28, height: 28, borderRadius: 6, background: C.purpleDim, border: `1px solid ${C.purple}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <span style={{ fontSize: 10, fontWeight: 600, color: C.purpleLight }}>{String(c.scene).padStart(2, "0")}</span>
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: 12, color: C.muted, margin: "0 0 4px" }}>{c.scene_desc}</p>
+                            <p style={{ fontSize: 12, color: C.text, margin: 0, lineHeight: 1.5 }}>{c.vid_prompt}</p>
+                          </div>
+                          <button onClick={() => copyText(c.vid_prompt)}
+                            style={{ fontSize: 11, padding: "5px 12px", cursor: "pointer", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, flexShrink: 0 }}>
+                            Copiar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
