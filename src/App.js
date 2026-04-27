@@ -7,7 +7,20 @@ const C = {
   success: "#3dd68c", warn: "#f0a500", error: "#f04f4f",
 };
 
-const MODELS_IMG = [
+const CONTENT_TYPES = [
+  {
+    id: "realista",
+    label: "Realista",
+    desc: "Fotográfico, cinematográfico, editorial",
+    icon: "◈"
+  },
+  {
+    id: "explicativo",
+    label: "Explicativo",
+    desc: "Whiteboard, infográfico, stick figure, diagrama",
+    icon: "◻"
+  },
+];
   { id: "flux-2-pro", label: "Flux 2 Pro", desc: "cinematográfico editorial — recomendado", cost: "$0.04/img" },
   { id: "mystic", label: "Mystic", desc: "fotorrealista detalhado", cost: "$0.04/img" },
   { id: "seedream-4-5", label: "Seedream 4.5", desc: "alta velocidade, boa qualidade", cost: "$0.02/img" },
@@ -40,6 +53,7 @@ const Btn = ({ children, onClick, disabled, accent, small }) => (
 export default function App() {
   const [tab, setTab] = useState("roteiro");
   const [script, setScript] = useState("");
+  const [contentType, setContentType] = useState("realista");
   const [imgModel, setImgModel] = useState("flux-2-pro");
   const [videoDuration, setVideoDuration] = useState(5);
   const [customScenes, setCustomScenes] = useState(null);
@@ -106,7 +120,7 @@ export default function App() {
       for (let c = 0; c < chunks.length; c++) {
         addLog(`Parte ${c + 1} de ${chunks.length}...`);
         setProgress(Math.round(((c + 1) / chunks.length) * 100));
-        const raw = await callClaude(`
+        const raw = await callClaude(contentType === "realista" ? `
 You are an expert art director and prompt engineer specializing in faceless YouTube channels — where the HOST does not appear, but the video can freely include people, faces, hands, environments, and any visual elements that serve the story.
 
 Your job is to analyze the script excerpt and create cinematic, editorial-quality image prompts that visually bring the content to life. Think like a premium brand campaign director: every frame should feel intentional, beautiful, and contextually matched to the script's theme and emotion.
@@ -130,6 +144,41 @@ RULES:
 - Start scene numbering from ${sceneCounter}.
 - Think of scenes as a visual story arc: establish context early, build in the middle, resolve or inspire at the end.
 - Each img_prompt must be unique and specific to that script moment — no generic shots.
+- Respond ONLY with a valid JSON array. No markdown, no explanation. Start with [ end with ].
+FORMAT: [{"scene":${sceneCounter},"scene_desc":"...","narration":"...","img_prompt":"...","vid_prompt":"..."}]
+SCRIPT EXCERPT:
+${chunks[c]}` : `
+You are an expert art director specializing in whiteboard animation and explainer video content for educational YouTube channels.
+
+Your job is to analyze the script excerpt and create image prompts in the style of whiteboard animation — clean, simple, expressive illustrations on white background, hand-drawn black ink style, like a skilled educator drawing on a whiteboard in real time.
+
+VISUAL ELEMENTS you can use depending on the script content:
+- Stick figures with expressive faces and body language (sad, confused, happy, thinking, running, pointing)
+- Simple diagrams: flowcharts, arrows, boxes, circles, timelines, bar charts, pie charts
+- Infographic-style layouts: numbered steps, icons, labels, comparison tables
+- Whiteboard sketches: light bulb for ideas, gears for systems, brain for thinking, magnifier for analysis
+- Speech bubbles, thought clouds, question marks, exclamation points
+- Simple scenery: house, office desk, city skyline, mountain — all in minimalist line art
+- Text elements: short keywords, numbers, labels drawn in clean handwriting style
+
+STYLE RULES (always apply):
+- Pure white background
+- Black or dark gray ink lines, hand-drawn style
+- Minimalist and clean — no color fills unless a single accent color (blue, red, or green) is needed for emphasis
+- Characters are stick figures — simple circle head, line body, expressive posture
+- Every scene should feel like a frame from a whiteboard animation video
+
+For each scene generate:
+1. scene_desc: short description in Portuguese of what the scene represents (1 line)
+2. narration: exact lines from the script for that scene
+3. img_prompt: detailed English prompt describing the whiteboard illustration. Describe exactly what is drawn: the stick figure's pose and expression, what diagram or visual element is shown, any text labels (max 4 words, exact words), layout and composition. Always start with "Whiteboard animation style, black ink on pure white background," and end with "clean hand-drawn illustration, educational explainer video style."
+4. vid_prompt: short English motion prompt for subtle animation (drawing-on effect, elements appearing one by one, slow zoom in, slight camera shake). 1 sentence.
+
+RULES:
+- Generate EXACTLY ${scenesPerChunk} scenes.
+- Start scene numbering from ${sceneCounter}.
+- Think of scenes as a visual story: introduce the problem early, explain in the middle, resolve or inspire at the end.
+- Each scene must be a distinct, specific illustration — no repeated compositions.
 - Respond ONLY with a valid JSON array. No markdown, no explanation. Start with [ end with ].
 FORMAT: [{"scene":${sceneCounter},"scene_desc":"...","narration":"...","img_prompt":"...","vid_prompt":"..."}]
 SCRIPT EXCERPT:
@@ -344,6 +393,22 @@ ${chunks[c]}`);
 
         {tab === "roteiro" && (
           <div>
+            <div style={S.card}>
+              <p style={S.sectionTitle}>TIPO DE CONTEÚDO</p>
+              <div style={{ display: "flex", gap: 10 }}>
+                {CONTENT_TYPES.map(ct => (
+                  <label key={ct.id} onClick={() => setContentType(ct.id)} style={{ flex: 1, cursor: "pointer", padding: "14px 16px", borderRadius: 10, border: `1px solid ${contentType === ct.id ? C.purple : C.border}`, background: contentType === ct.id ? C.purpleDim + "66" : C.surface, display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 16, color: contentType === ct.id ? C.purpleLight : C.muted }}>{ct.icon}</span>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: contentType === ct.id ? C.purpleLight : C.text }}>{ct.label}</span>
+                      {contentType === ct.id && <span style={{ marginLeft: "auto", fontSize: 10, padding: "2px 8px", borderRadius: 4, background: C.purpleDim, color: C.purpleLight, border: `1px solid ${C.purple}` }}>ATIVO</span>}
+                    </div>
+                    <span style={{ fontSize: 12, color: C.muted }}>{ct.desc}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
             <div style={S.card}>
               <span style={S.label}>ROTEIRO DO EPISÓDIO</span>
               <textarea style={S.textarea} value={script} onChange={e => setScript(e.target.value)} placeholder="Cole o roteiro completo aqui..." />
