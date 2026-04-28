@@ -127,7 +127,7 @@ export default function App() {
   };
 
   const buildPrompt = (chunks, c, scenesPerChunk, sceneCounter) => {
-    const base = `
+    const rules = `
 RULES:
 - Generate EXACTLY ${scenesPerChunk} scenes.
 - Start scene numbering from ${sceneCounter}.
@@ -154,18 +154,17 @@ VISUAL ELEMENTS you can use depending on the script content:
 
 STYLE RULES (always apply):
 - Pure white background
-- Black ink hand-drawn style as the base — clean, minimalist lines
-- Use ONE or TWO accent colors strategically to highlight the most important element of the scene (example: a red arrow pointing to a problem, a blue icon representing a solution, an orange question mark)
-- Never use more than 2 colors beyond black and white
+- Black or dark gray ink lines, hand-drawn style
+- Minimalist and clean — no color fills unless a single accent color (blue, red, or green) is needed for emphasis
 - Characters are stick figures — simple circle head, line body, expressive posture
-- The result should look like a high-quality professional whiteboard animation — clean, focused, intentional use of color as emphasis only
+- Every scene should feel like a frame from a whiteboard animation video
 
 For each scene generate:
 1. scene_desc: short description in Portuguese of what the scene represents (1 line)
 2. narration: exact lines from the script for that scene
 3. img_prompt: detailed English prompt describing the whiteboard illustration. Start with "Whiteboard animation style, black ink on pure white background," — then describe exactly what is drawn: the stick figure pose and expression, what diagram or visual element appears, any text labels. End with "clean hand-drawn illustration, educational explainer video style."
 4. vid_prompt: short English motion prompt for subtle animation (drawing-on effect, elements appearing, slow zoom). 1 sentence.
-${base}`;
+${rules}`;
     }
 
     return `You are an expert art director and prompt engineer specializing in faceless YouTube channels — where the HOST does not appear, but the video can freely include people, faces, hands, environments, and any visual elements that serve the story.
@@ -185,7 +184,7 @@ For each scene generate:
 2. narration: exact lines from the script for that scene
 3. img_prompt: detailed, professional English image prompt. Include: subject, setting, lighting, mood, camera angle, color palette, visual style. End with: "sharp focus, professional photography, high resolution, natural exposure, clean composition." IMPORTANT TEXT RULE: avoid generic random text on screens. If text is relevant, specify EXACT short words (max 4), e.g. screen showing "Context. Task. Rules." in clean white typography.
 4. vid_prompt: short English motion prompt (slow zoom, parallax, pan, light shift). 1 sentence.
-${base}`;
+${rules}`;
   };
 
   const segmentScript = async () => {
@@ -554,7 +553,7 @@ ${base}`;
                     </div>
                     <div style={{ padding: "10px 12px" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: C.purple }}>#{String(s.scene).padStart(2, "0")}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: C.purple }}>#{String(s.scene).padStart(2, "00")}</span>
                         <Tag color={stColor}>{stLabel}</Tag>
                       </div>
                       <p style={{ fontSize: 11, color: C.muted, margin: "0 0 8px", lineHeight: 1.4 }}>{s.scene_desc}</p>
@@ -635,7 +634,6 @@ ${base}`;
                     </div>
                   ))}
                 </div>
-
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {!historicoAberto ? (
                     <div style={{ ...S.card, textAlign: "center", padding: 40 }}>
