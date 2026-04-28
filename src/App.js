@@ -153,13 +153,12 @@ VISUAL ELEMENTS you can use depending on the script content:
 - Text elements: short keywords, numbers, labels in clean handwriting style (max 4 words)
 
 STYLE RULES (always apply):
-- White or very light background
-- Clean hand-drawn or flat illustration style
-- DEFAULT: use color. Choose a vibrant, friendly color palette typical of modern explainer videos (bold blues, greens, oranges, yellows, reds). Make illustrations colorful and engaging.
-- Stick figures and characters should have colored clothing, accessories or highlights
-- Diagrams, arrows, icons and elements should use contrasting colors for clarity
-- Only use black and white when the scene specifically depicts something dark, sad or very serious — and even then, add at least one accent color
-- Every scene should feel like a frame from a modern, colorful, professional explainer animation
+- Pure white background
+- Black ink hand-drawn style as the base — clean, minimalist lines
+- Use ONE or TWO accent colors strategically to highlight the most important element of the scene (example: a red arrow pointing to a problem, a blue icon representing a solution, an orange question mark)
+- Never use more than 2 colors beyond black and white
+- Characters are stick figures — simple circle head, line body, expressive posture
+- The result should look like a high-quality professional whiteboard animation — clean, focused, intentional use of color as emphasis only
 
 For each scene generate:
 1. scene_desc: short description in Portuguese of what the scene represents (1 line)
