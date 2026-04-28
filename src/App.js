@@ -155,11 +155,11 @@ VISUAL ELEMENTS you can use depending on the script content:
 STYLE RULES (always apply):
 - White or very light background
 - Clean hand-drawn or flat illustration style
-- Can use full color, limited palette, or black and white — choose based on what best serves the content and emotion of the scene
-- When using color: prefer flat, vibrant, friendly colors typical of modern explainer videos (bold blues, greens, oranges, reds)
-- When using black and white: clean black ink lines on white background, minimalist
-- Characters are stick figures — simple circle head, line body, expressive posture
-- Every scene should feel like a frame from a professional whiteboard or explainer animation video
+- DEFAULT: use color. Choose a vibrant, friendly color palette typical of modern explainer videos (bold blues, greens, oranges, yellows, reds). Make illustrations colorful and engaging.
+- Stick figures and characters should have colored clothing, accessories or highlights
+- Diagrams, arrows, icons and elements should use contrasting colors for clarity
+- Only use black and white when the scene specifically depicts something dark, sad or very serious — and even then, add at least one accent color
+- Every scene should feel like a frame from a modern, colorful, professional explainer animation
 
 For each scene generate:
 1. scene_desc: short description in Portuguese of what the scene represents (1 line)
