@@ -8,19 +8,11 @@ const C = {
 };
 
 const CONTENT_TYPES = [
-  {
-    id: "realista",
-    label: "Realista",
-    desc: "Fotográfico, cinematográfico, editorial",
-    icon: "◈"
-  },
-  {
-    id: "explicativo",
-    label: "Explicativo",
-    desc: "Whiteboard, infográfico, stick figure, diagrama",
-    icon: "◻"
-  },
+  { id: "realista", label: "Realista", desc: "Fotográfico, cinematográfico, editorial", icon: "◈" },
+  { id: "explicativo", label: "Explicativo", desc: "Whiteboard, infográfico, stick figure, diagrama", icon: "◻" },
 ];
+
+const MODELS_IMG = [
   { id: "flux-2-pro", label: "Flux 2 Pro", desc: "cinematográfico editorial — recomendado", cost: "$0.04/img" },
   { id: "mystic", label: "Mystic", desc: "fotorrealista detalhado", cost: "$0.04/img" },
   { id: "seedream-4-5", label: "Seedream 4.5", desc: "alta velocidade, boa qualidade", cost: "$0.02/img" },
@@ -103,11 +95,103 @@ export default function App() {
   const toggleRegen = (idx) =>
     setRegenList(prev => prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]);
 
+  const salvarHistorico = (scenesData, scriptText) => {
+    try {
+      const titulo = scriptText.trim().split("\n")[0].slice(0, 60) || "Episódio sem título";
+      const entrada = {
+        id: Date.now(), timestamp: Date.now(),
+        titulo, contentType,
+        data: new Date().toLocaleDateString("pt-BR"),
+        hora: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+        cenas: scenesData.map(s => ({
+          scene: s.scene, scene_desc: s.scene_desc,
+          narration: s.narration, vid_prompt: s.vid_prompt,
+        }))
+      };
+      const semana = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const anterior = (() => {
+        try { return JSON.parse(localStorage.getItem("scl_historico") || "[]"); } catch { return []; }
+      })().filter(h => h.timestamp > semana);
+      const novo = [entrada, ...anterior].slice(0, 30);
+      localStorage.setItem("scl_historico", JSON.stringify(novo));
+      setHistorico(novo);
+      addLog(`Histórico salvo: "${titulo}"`, "success");
+    } catch (e) { addLog(`Erro ao salvar histórico: ${e.message}`, "warn"); }
+  };
+
+  const deletarHistorico = (id) => {
+    const novo = historico.filter(h => h.id !== id);
+    localStorage.setItem("scl_historico", JSON.stringify(novo));
+    setHistorico(novo);
+    if (historicoAberto?.id === id) setHistoricoAberto(null);
+  };
+
+  const buildPrompt = (chunks, c, scenesPerChunk, sceneCounter) => {
+    const base = `
+RULES:
+- Generate EXACTLY ${scenesPerChunk} scenes.
+- Start scene numbering from ${sceneCounter}.
+- Think of scenes as a visual story arc: establish context early, build in the middle, resolve or inspire at the end.
+- Each img_prompt must be unique and specific to that script moment.
+- Respond ONLY with a valid JSON array. No markdown, no explanation. Start with [ end with ].
+FORMAT: [{"scene":${sceneCounter},"scene_desc":"...","narration":"...","img_prompt":"...","vid_prompt":"..."}]
+SCRIPT EXCERPT:
+${chunks[c]}`;
+
+    if (contentType === "explicativo") {
+      return `You are an expert art director specializing in whiteboard animation and explainer video content for educational YouTube channels.
+
+Your job is to analyze the script excerpt and create image prompts in the style of whiteboard animation — clean, simple, expressive illustrations on white background, hand-drawn black ink style, like a skilled educator drawing on a whiteboard in real time.
+
+VISUAL ELEMENTS you can use depending on the script content:
+- Stick figures with expressive faces and body language (sad, confused, happy, thinking, running, pointing)
+- Simple diagrams: flowcharts, arrows, boxes, circles, timelines, bar charts, pie charts
+- Infographic-style layouts: numbered steps, icons, labels, comparison tables
+- Whiteboard sketches: light bulb for ideas, gears for systems, brain for thinking, magnifier for analysis
+- Speech bubbles, thought clouds, question marks, exclamation points
+- Simple scenery: house, office desk, city skyline — all in minimalist line art
+- Text elements: short keywords, numbers, labels in clean handwriting style (max 4 words)
+
+STYLE RULES (always apply):
+- Pure white background
+- Black or dark gray ink lines, hand-drawn style
+- Minimalist and clean — no color fills unless a single accent color (blue, red, or green) is needed for emphasis
+- Characters are stick figures — simple circle head, line body, expressive posture
+- Every scene should feel like a frame from a whiteboard animation video
+
+For each scene generate:
+1. scene_desc: short description in Portuguese of what the scene represents (1 line)
+2. narration: exact lines from the script for that scene
+3. img_prompt: detailed English prompt describing the whiteboard illustration. Start with "Whiteboard animation style, black ink on pure white background," — then describe exactly what is drawn: the stick figure pose and expression, what diagram or visual element appears, any text labels. End with "clean hand-drawn illustration, educational explainer video style."
+4. vid_prompt: short English motion prompt for subtle animation (drawing-on effect, elements appearing, slow zoom). 1 sentence.
+${base}`;
+    }
+
+    return `You are an expert art director and prompt engineer specializing in faceless YouTube channels — where the HOST does not appear, but the video can freely include people, faces, hands, environments, and any visual elements that serve the story.
+
+Your job is to analyze the script excerpt and create cinematic, editorial-quality image prompts that visually bring the content to life. Think like a premium brand campaign director: every frame should feel intentional, beautiful, and contextually matched to the script's theme and emotion.
+
+VISUAL STYLE GUIDE by theme:
+- Health/Beauty: warm editorial lighting, marble surfaces, luxury products, close-up textures, golden hour tones
+- Finance/Business: clean office environments, data visualizations, hands on documents, architectural shots
+- Psychology/Mind: conceptual imagery, abstract light patterns, human silhouettes, contemplative environments
+- Technology/AI: interfaces, screens, human-machine interaction, blue/white tones, modern workspaces
+- Sports/Movement: dynamic angles, motion blur, athletic environments, energy and tension
+- Philosophy/Science: macro details, natural phenomena, cosmic scale, timeless environments
+
+For each scene generate:
+1. scene_desc: short description in Portuguese of what the scene represents (1 line)
+2. narration: exact lines from the script for that scene
+3. img_prompt: detailed, professional English image prompt. Include: subject, setting, lighting, mood, camera angle, color palette, visual style. End with: "sharp focus, professional photography, high resolution, natural exposure, clean composition." IMPORTANT TEXT RULE: avoid generic random text on screens. If text is relevant, specify EXACT short words (max 4), e.g. screen showing "Context. Task. Rules." in clean white typography.
+4. vid_prompt: short English motion prompt (slow zoom, parallax, pan, light shift). 1 sentence.
+${base}`;
+  };
+
   const segmentScript = async () => {
     if (!script.trim()) return;
     const wordCount = script.trim().split(/\s+/).length;
     setBusy(true); setScenes([]); setLog([]); setProgress(0); setRegenList([]);
-    addLog(`Roteiro: ~${wordCount} palavras · Duração: ${videoDuration}min · Meta: ${targetScenes} cenas`);
+    addLog(`Roteiro: ~${wordCount} palavras · Tipo: ${contentType} · Meta: ${targetScenes} cenas`);
     try {
       const words = script.trim().split(/\s+/);
       const chunks = [];
@@ -120,70 +204,7 @@ export default function App() {
       for (let c = 0; c < chunks.length; c++) {
         addLog(`Parte ${c + 1} de ${chunks.length}...`);
         setProgress(Math.round(((c + 1) / chunks.length) * 100));
-        const raw = await callClaude(contentType === "realista" ? `
-You are an expert art director and prompt engineer specializing in faceless YouTube channels — where the HOST does not appear, but the video can freely include people, faces, hands, environments, and any visual elements that serve the story.
-
-Your job is to analyze the script excerpt and create cinematic, editorial-quality image prompts that visually bring the content to life. Think like a premium brand campaign director: every frame should feel intentional, beautiful, and contextually matched to the script's theme and emotion.
-
-VISUAL STYLE GUIDE by theme (adapt freely based on actual script content):
-- Health/Beauty: warm editorial lighting, marble surfaces, luxury products, close-up textures, people seen from behind or at angle, golden hour tones
-- Finance/Business: clean office environments, data visualizations, hands on documents, architectural shots, confident compositions
-- Psychology/Mind: conceptual imagery, abstract light patterns, human silhouettes, contemplative environments, depth of field
-- Technology/AI: interfaces, screens with code, human-machine interaction, blue/white tones, modern workspaces
-- Sports/Movement: dynamic angles, motion blur, athletic environments, energy and tension
-- Philosophy/Science: macro details, natural phenomena, cosmic scale, timeless environments
-
-For each scene generate:
-1. scene_desc: short description in Portuguese of what the scene represents (1 line)
-2. narration: exact lines from the script for that scene
-3. img_prompt: a detailed, professional English image prompt. Include: subject, setting, lighting, mood, camera angle, color palette, visual style. End every prompt with: "sharp focus, professional photography, high resolution, natural exposure, clean composition." Match the quality level of a premium editorial or brand campaign. The host never appears — but other people, faces, environments are welcome when they serve the story. IMPORTANT TEXT RULE: avoid requesting screens, interfaces or surfaces with generic or random text. If text is visually relevant to the scene, specify the EXACT short words to display (max 4 words), for example: screen showing "Context. Task. Rules." in clean white typography. Never use placeholder or lorem ipsum style text.
-4. vid_prompt: short English motion prompt (slow zoom, parallax, pan, light shift). 1 sentence.
-
-RULES:
-- Generate EXACTLY ${scenesPerChunk} scenes.
-- Start scene numbering from ${sceneCounter}.
-- Think of scenes as a visual story arc: establish context early, build in the middle, resolve or inspire at the end.
-- Each img_prompt must be unique and specific to that script moment — no generic shots.
-- Respond ONLY with a valid JSON array. No markdown, no explanation. Start with [ end with ].
-FORMAT: [{"scene":${sceneCounter},"scene_desc":"...","narration":"...","img_prompt":"...","vid_prompt":"..."}]
-SCRIPT EXCERPT:
-${chunks[c]}` : `
-You are an expert art director specializing in whiteboard animation and explainer video content for educational YouTube channels.
-
-Your job is to analyze the script excerpt and create image prompts in the style of whiteboard animation — clean, simple, expressive illustrations on white background, hand-drawn black ink style, like a skilled educator drawing on a whiteboard in real time.
-
-VISUAL ELEMENTS you can use depending on the script content:
-- Stick figures with expressive faces and body language (sad, confused, happy, thinking, running, pointing)
-- Simple diagrams: flowcharts, arrows, boxes, circles, timelines, bar charts, pie charts
-- Infographic-style layouts: numbered steps, icons, labels, comparison tables
-- Whiteboard sketches: light bulb for ideas, gears for systems, brain for thinking, magnifier for analysis
-- Speech bubbles, thought clouds, question marks, exclamation points
-- Simple scenery: house, office desk, city skyline, mountain — all in minimalist line art
-- Text elements: short keywords, numbers, labels drawn in clean handwriting style
-
-STYLE RULES (always apply):
-- Pure white background
-- Black or dark gray ink lines, hand-drawn style
-- Minimalist and clean — no color fills unless a single accent color (blue, red, or green) is needed for emphasis
-- Characters are stick figures — simple circle head, line body, expressive posture
-- Every scene should feel like a frame from a whiteboard animation video
-
-For each scene generate:
-1. scene_desc: short description in Portuguese of what the scene represents (1 line)
-2. narration: exact lines from the script for that scene
-3. img_prompt: detailed English prompt describing the whiteboard illustration. Describe exactly what is drawn: the stick figure's pose and expression, what diagram or visual element is shown, any text labels (max 4 words, exact words), layout and composition. Always start with "Whiteboard animation style, black ink on pure white background," and end with "clean hand-drawn illustration, educational explainer video style."
-4. vid_prompt: short English motion prompt for subtle animation (drawing-on effect, elements appearing one by one, slow zoom in, slight camera shake). 1 sentence.
-
-RULES:
-- Generate EXACTLY ${scenesPerChunk} scenes.
-- Start scene numbering from ${sceneCounter}.
-- Think of scenes as a visual story: introduce the problem early, explain in the middle, resolve or inspire at the end.
-- Each scene must be a distinct, specific illustration — no repeated compositions.
-- Respond ONLY with a valid JSON array. No markdown, no explanation. Start with [ end with ].
-FORMAT: [{"scene":${sceneCounter},"scene_desc":"...","narration":"...","img_prompt":"...","vid_prompt":"..."}]
-SCRIPT EXCERPT:
-${chunks[c]}`);
-
+        const raw = await callClaude(buildPrompt(chunks, c, scenesPerChunk, sceneCounter));
         const match = raw.match(/\[[\s\S]*?\]/);
         if (!match) { addLog(`Parte ${c + 1}: JSON não encontrado.`, "warn"); continue; }
         try {
@@ -245,14 +266,13 @@ ${chunks[c]}`);
           else addLog(`[Cena ${sc.scene}] Sem imagem no retorno.`, "warn");
           return !!imgUrl;
         }
-
         if (status === "failed" || status === "FAILED") {
           if (!isRetry) {
             addLog(`[Cena ${sc.scene}] Falhou — retentando em 5s...`, "warn");
             await new Promise(r => setTimeout(r, 5000));
             return await generateImage(sc, idx, true);
           }
-          throw new Error(`Falhou novamente. Edite o prompt na aba Validar e clique em Tentar.`);
+          throw new Error("Falhou novamente. Edite o prompt na aba Validar e clique em Tentar.");
         }
       }
       throw new Error("Timeout após 160 segundos.");
@@ -267,7 +287,7 @@ ${chunks[c]}`);
     const toGen = scenes.filter(s => s.approved && s.status !== "done");
     if (!toGen.length) return;
     setBusy(true); setTab("gerar"); setProgress(0);
-    addLog(`Iniciando geração de ${toGen.length} imagens com ${imgModel}...`);
+    addLog(`Iniciando geração de ${toGen.length} imagens...`);
     let done = 0;
     for (let i = 0; i < scenes.length; i++) {
       if (!scenes[i].approved || scenes[i].status === "done") continue;
@@ -294,52 +314,18 @@ ${chunks[c]}`);
     }
     setRegenList([]);
     setGeneratingIdx(null);
-    addLog(`Regeração concluída!`, "success");
+    addLog("Regeração concluída!", "success");
     setBusy(false);
   };
 
-  const salvarHistorico = (scenesData, scriptText) => {
-    try {
-      const titulo = scriptText.trim().split("\n")[0].slice(0, 60) || "Episódio sem título";
-      const entrada = {
-        id: Date.now(),
-        timestamp: Date.now(),
-        titulo,
-        data: new Date().toLocaleDateString("pt-BR"),
-        hora: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
-        cenas: scenesData.map(s => ({
-          scene: s.scene,
-          scene_desc: s.scene_desc,
-          narration: s.narration,
-          vid_prompt: s.vid_prompt,
-        }))
-      };
-      const semana = Date.now() - 7 * 24 * 60 * 60 * 1000;
-      const anterior = (() => {
-        try { return JSON.parse(localStorage.getItem("scl_historico") || "[]"); } catch { return []; }
-      })().filter(h => h.timestamp > semana);
-      const novo = [entrada, ...anterior].slice(0, 30);
-      localStorage.setItem("scl_historico", JSON.stringify(novo));
-      setHistorico(novo);
-      addLog(`Histórico salvo: "${titulo}"`, "success");
-    } catch (e) {
-      addLog(`Erro ao salvar histórico: ${e.message}`, "warn");
-    }
-  };
-
-  const deletarHistorico = (id) => {
-    const novo = historico.filter(h => h.id !== id);
-    localStorage.setItem("scl_historico", JSON.stringify(novo));
-    setHistorico(novo);
-    if (historicoAberto?.id === id) setHistoricoAberto(null);
-  };
+  const openImage = (sc) => { if (sc.imgUrl) window.open(sc.imgUrl, "_blank"); };
   const openAll = () => scenes.filter(s => s.imgUrl).forEach((s, i) => setTimeout(() => openImage(s), i * 600));
   const copyText = (t) => navigator.clipboard.writeText(t);
 
   const logColor = { info: C.muted, success: C.success, error: C.error, warn: C.warn };
   const statusCfg = {
     pending: [C.faint, "Aguardando"], generating: [C.warn, "Gerando..."],
-    done: [C.success, "Pronta"], error: [C.error, "Erro"]
+    done: [C.success, "Pronta"], error: [C.error, "Erro"],
   };
 
   const S = {
@@ -394,24 +380,24 @@ ${chunks[c]}`);
         {tab === "roteiro" && (
           <div>
             <div style={S.card}>
+              <span style={S.label}>ROTEIRO DO EPISÓDIO</span>
+              <textarea style={S.textarea} value={script} onChange={e => setScript(e.target.value)} placeholder="Cole o roteiro completo aqui..." />
+            </div>
+
+            <div style={S.card}>
               <p style={S.sectionTitle}>TIPO DE CONTEÚDO</p>
               <div style={{ display: "flex", gap: 10 }}>
                 {CONTENT_TYPES.map(ct => (
-                  <label key={ct.id} onClick={() => setContentType(ct.id)} style={{ flex: 1, cursor: "pointer", padding: "14px 16px", borderRadius: 10, border: `1px solid ${contentType === ct.id ? C.purple : C.border}`, background: contentType === ct.id ? C.purpleDim + "66" : C.surface, display: "flex", flexDirection: "column", gap: 6 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div key={ct.id} onClick={() => setContentType(ct.id)} style={{ flex: 1, cursor: "pointer", padding: "14px 16px", borderRadius: 10, border: `1px solid ${contentType === ct.id ? C.purple : C.border}`, background: contentType === ct.id ? C.purpleDim + "66" : C.surface }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                       <span style={{ fontSize: 16, color: contentType === ct.id ? C.purpleLight : C.muted }}>{ct.icon}</span>
                       <span style={{ fontSize: 14, fontWeight: 600, color: contentType === ct.id ? C.purpleLight : C.text }}>{ct.label}</span>
                       {contentType === ct.id && <span style={{ marginLeft: "auto", fontSize: 10, padding: "2px 8px", borderRadius: 4, background: C.purpleDim, color: C.purpleLight, border: `1px solid ${C.purple}` }}>ATIVO</span>}
                     </div>
                     <span style={{ fontSize: 12, color: C.muted }}>{ct.desc}</span>
-                  </label>
+                  </div>
                 ))}
               </div>
-            </div>
-
-            <div style={S.card}>
-              <span style={S.label}>ROTEIRO DO EPISÓDIO</span>
-              <textarea style={S.textarea} value={script} onChange={e => setScript(e.target.value)} placeholder="Cole o roteiro completo aqui..." />
             </div>
 
             <div style={S.card}>
@@ -520,7 +506,6 @@ ${chunks[c]}`);
                 <div style={S.progressBar}><div style={{ ...S.progressFill, width: `${progress}%` }} /></div>
               </div>
             )}
-
             <div style={{ ...S.row, marginBottom: 16 }}>
               <div style={S.stat}><div style={{ fontSize: 20, fontWeight: 600, color: C.purpleLight }}>{doneCount}</div><div style={{ fontSize: 11, color: C.muted }}>GERADAS</div></div>
               <div style={S.stat}><div style={{ fontSize: 20, fontWeight: 600, color: C.error }}>{scenes.filter(s => s.status === "error").length}</div><div style={{ fontSize: 11, color: C.muted }}>ERROS</div></div>
@@ -640,7 +625,12 @@ ${chunks[c]}`);
                         <button onClick={e => { e.stopPropagation(); deletarHistorico(h.id); }}
                           style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, cursor: "pointer", flexShrink: 0 }}>✕</button>
                       </div>
-                      <p style={{ fontSize: 11, color: C.muted, margin: "4px 0 0" }}>{h.data} às {h.hora} · {h.cenas.length} cenas</p>
+                      <div style={{ display: "flex", gap: 6, marginTop: 4, alignItems: "center" }}>
+                        <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 3, background: h.contentType === "explicativo" ? "#1a3a1a" : C.purpleDim, color: h.contentType === "explicativo" ? C.success : C.purpleLight, border: `1px solid ${h.contentType === "explicativo" ? C.success : C.purple}` }}>
+                          {h.contentType === "explicativo" ? "Explicativo" : "Realista"}
+                        </span>
+                        <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>{h.data} · {h.cenas.length} cenas</p>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -665,8 +655,7 @@ ${chunks[c]}`);
                             <p style={{ fontSize: 12, color: C.muted, margin: "0 0 4px" }}>{c.scene_desc}</p>
                             <p style={{ fontSize: 12, color: C.text, margin: 0, lineHeight: 1.5 }}>{c.vid_prompt}</p>
                           </div>
-                          <button onClick={() => copyText(c.vid_prompt)}
-                            style={{ fontSize: 11, padding: "5px 12px", cursor: "pointer", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, flexShrink: 0 }}>
+                          <button onClick={() => copyText(c.vid_prompt)} style={{ fontSize: 11, padding: "5px 12px", cursor: "pointer", borderRadius: 6, border: `1px solid ${C.border}`, background: "transparent", color: C.muted, flexShrink: 0 }}>
                             Copiar
                           </button>
                         </div>
