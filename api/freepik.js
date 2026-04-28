@@ -32,8 +32,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         prompt: req.body.prompt,
-        aspect_ratio: "widescreen_16_9",
-        resolution: "2k"
+        aspect_ratio: "widescreen_16_9"
       })
     });
 
