@@ -153,11 +153,13 @@ VISUAL ELEMENTS you can use depending on the script content:
 - Text elements: short keywords, numbers, labels in clean handwriting style (max 4 words)
 
 STYLE RULES (always apply):
-- Pure white background
-- Black or dark gray ink lines, hand-drawn style
-- Minimalist and clean — no color fills unless a single accent color (blue, red, or green) is needed for emphasis
+- White or very light background
+- Clean hand-drawn or flat illustration style
+- Can use full color, limited palette, or black and white — choose based on what best serves the content and emotion of the scene
+- When using color: prefer flat, vibrant, friendly colors typical of modern explainer videos (bold blues, greens, oranges, reds)
+- When using black and white: clean black ink lines on white background, minimalist
 - Characters are stick figures — simple circle head, line body, expressive posture
-- Every scene should feel like a frame from a whiteboard animation video
+- Every scene should feel like a frame from a professional whiteboard or explainer animation video
 
 For each scene generate:
 1. scene_desc: short description in Portuguese of what the scene represents (1 line)
